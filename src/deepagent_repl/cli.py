@@ -11,6 +11,7 @@ import deepagent_repl.commands.compress  # noqa: F401
 import deepagent_repl.commands.export  # noqa: F401
 import deepagent_repl.commands.graph  # noqa: F401
 import deepagent_repl.commands.image  # noqa: F401
+import deepagent_repl.commands.model  # noqa: F401
 import deepagent_repl.commands.new  # noqa: F401
 import deepagent_repl.commands.fork  # noqa: F401
 import deepagent_repl.commands.resume  # noqa: F401
@@ -676,6 +677,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--no-stream", action="store_true", help="Disable streaming (clean output)"
     )
+    parser.add_argument(
+        "--tui", action="store_true", help="Launch the Textual TUI front-end (experimental)"
+    )
     return parser.parse_args()
 
 
@@ -694,6 +698,10 @@ def main() -> None:
                 run_oneshot(message, output_json=args.output_json, no_stream=args.no_stream)
             )
             sys.exit(code)
+        elif args.tui:
+            from deepagent_repl.tui import run_tui
+
+            run_tui()
         else:
             asyncio.run(run())
     except KeyboardInterrupt:
