@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     graph_id: str | None = None
     thread_id: str | None = None
     langsmith_api_key: str | None = None
-    deepagent_color: str = "cyan"
+    deepagent_theme: str = "default"
 
 
 settings = Settings()

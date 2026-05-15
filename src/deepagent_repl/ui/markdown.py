@@ -4,13 +4,33 @@ import re
 
 from rich.markdown import Markdown
 
-def render_markdown(text: str) -> Markdown:
-    """Convert a markdown string to a Rich Markdown renderable.
+from deepagent_repl.ui.theme import markdown_theme
+
+
+class _ThemedMarkdown:
+    """Render a Markdown with the current palette's overrides pushed onto the
+    console — so inline code, headings, links, etc. follow the active theme
+    instead of Rich's hard-coded cyan/magenta defaults."""
+
+    def __init__(self, md: Markdown) -> None:
+        self._md = md
+
+    def __rich_console__(self, console, options):
+        console.push_theme(markdown_theme())
+        try:
+            yield from self._md.__rich_console__(console, options)
+        finally:
+            console.pop_theme()
+
+
+def render_markdown(text: str) -> _ThemedMarkdown:
+    """Convert a markdown string to a Rich-renderable that respects the
+    current UI theme.
 
     Pre-processes the text to handle edge cases before Rich rendering.
     """
     processed = _preprocess(text)
-    return Markdown(processed, code_theme="monokai")
+    return _ThemedMarkdown(Markdown(processed, code_theme="monokai"))
 
 
 def _preprocess(text: str) -> str:

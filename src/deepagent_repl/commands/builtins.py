@@ -19,11 +19,11 @@ async def cmd_help(client, session, args: str) -> None:
         render_info("No commands registered.")
         return
 
-    accent = _theme.ACCENT_COLOR
+    cmd_color = _theme.current_theme().command
     name_width = max((len(name) + 1 for name in cmds), default=10)
 
     table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
-    table.add_column("Command", style=f"bold {accent}", min_width=name_width)
+    table.add_column("Command", style=f"bold {cmd_color}", min_width=name_width)
     table.add_column("Description", style="dim", overflow="fold")
 
     for name, desc in sorted(cmds.items()):

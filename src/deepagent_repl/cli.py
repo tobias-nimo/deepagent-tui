@@ -16,7 +16,7 @@ import deepagent_repl.commands.new  # noqa: F401
 import deepagent_repl.commands.fork  # noqa: F401
 import deepagent_repl.commands.resume  # noqa: F401
 import deepagent_repl.commands.skills  # noqa: F401
-import deepagent_repl.commands.color  # noqa: F401
+import deepagent_repl.commands.theme  # noqa: F401
 import deepagent_repl.commands.threads  # noqa: F401
 from deepagent_repl.client import AgentClient
 from deepagent_repl.commands import clear_dynamic, is_command, register_skill

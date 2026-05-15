@@ -34,7 +34,7 @@ Set via environment variables or `.env` file:
 | `GRAPH_ID` | auto-discover | Specific graph/assistant to connect to |
 | `LANGSMITH_API_KEY` | — | API key for authenticated connections |
 | `THREAD_ID` | — | Resume a specific thread on startup |
-| `DEEPAGENT_COLOR` | `cyan` | Accent color (Rich color name or hex code, e.g., `#e86e48`) |
+| `DEEPAGENT_THEME` | `default` | UI theme: `default`, `aesthetic`, `vintage`, `monochrome`, `terminal`, `sunset`, `ocean`, `neon` |
 
 ## Commands
 
@@ -80,7 +80,7 @@ All commands start with `/` and support **tab completion**.
 |---------|-------------|
 | `/image <path> [message]` | Send an image to the agent |
 | `/graph` | Render agent's execution graph as Mermaid diagram in the browser |
-| `/color [hex]` | Set dynamic accent color (e.g., `/color #ff6b6b`) |
+| `/theme [name]` | Switch UI theme; no argument lists all themes with previews |
 
 ## Key Bindings
 

@@ -42,33 +42,10 @@ from deepagent_repl.ui.markdown import render_markdown
 
 _DEBUG = os.environ.get("DEEPAGENT_DEBUG") == "1"
 
-# Muted, serious blue used for slash/question hints and autocomplete entries —
-# distinct from the (often vivid) user accent colour.
-_COMMAND_BLUE = "#5b7ca8"
 
-
-def _accent_hex() -> str:
-    """Return the user's accent colour as a hex string usable by Textual CSS."""
-    color = _theme.ACCENT_COLOR
-    if color.startswith("#"):
-        return color
-    named = {
-        "cyan": "#22d3ee",
-        "blue": "#3b82f6",
-        "green": "#22c55e",
-        "magenta": "#d946ef",
-        "red": "#ef4444",
-        "yellow": "#eab308",
-        "white": "#f5f5f5",
-        "bright_cyan": "#67e8f9",
-        "bright_blue": "#60a5fa",
-        "bright_green": "#4ade80",
-        "bright_magenta": "#f0abfc",
-        "bright_red": "#fca5a5",
-        "bright_yellow": "#fde047",
-        "bright_white": "#ffffff",
-    }
-    return named.get(color, "#22d3ee")
+def _command_color() -> str:
+    """Hex color used for slash/question hints and autocomplete entries."""
+    return _theme.current_theme().command
 
 
 class StatusBar(Static):
@@ -139,13 +116,14 @@ class WelcomeBanner(Static):
             rows.append(Text(ws, style="dim"))
 
         sep = Text("  ◆  ", style="dim")
+        cmd = _command_color()
         rows.append(Text(""))
         rows.append(
             Text.assemble(
-                ("/", f"bold {_COMMAND_BLUE}"),
+                ("/", f"bold {cmd}"),
                 (" for commands", "dim"),
                 sep,
-                ("?", f"bold {_COMMAND_BLUE}"),
+                ("?", f"bold {cmd}"),
                 (" for shortcuts", "dim"),
             )
         )
@@ -289,7 +267,7 @@ class DeepAgentTUI(App):
         background: $background;
         color: $text-muted;
     }
-    """.replace("ACCENT", _accent_hex())
+    """
 
     BINDINGS = [
         Binding("ctrl+c", "quit", "Quit", show=False, priority=True),
@@ -384,10 +362,11 @@ class DeepAgentTUI(App):
             return
 
         name_width = max(len(n) for n, _ in matches) + 2
+        cmd = _command_color()
         for name, desc in matches[:20]:
             padded = f"/{name}".ljust(name_width)
             label = Text.assemble(
-                (padded, f"bold {_COMMAND_BLUE}"),
+                (padded, f"bold {cmd}"),
                 ("  ", ""),
                 (desc or "", "dim"),
             )
@@ -500,6 +479,14 @@ class DeepAgentTUI(App):
         # the TUI by wiping the message log after the command runs.
         if name == "new" and handled:
             self.action_clear_log()
+
+        # /theme repaints the welcome banner so the gradient + command color
+        # reflect the new palette immediately.
+        if name == "theme" and handled:
+            try:
+                self.query_one("#welcome", WelcomeBanner).refresh_content()
+            except Exception:
+                pass
 
         self._flush_capture(cap)
 
@@ -840,11 +827,6 @@ class DeepAgentTUI(App):
                 self._write_text("")
 
 
-# Cyan → magenta gradient (Qwen-style).
-_GRADIENT_START = (34, 211, 238)
-_GRADIENT_END = (217, 70, 239)
-
-
 def _collapse_home(path: str) -> str:
     home = os.path.expanduser("~")
     if path == home:
@@ -863,8 +845,9 @@ def _workspace_label(session: Session) -> str | None:
 def _gradient_line(line: str, width: int) -> Text:
     out = Text()
     span = max(1, width - 1)
-    sr, sg, sb = _GRADIENT_START
-    er, eg, eb = _GRADIENT_END
+    theme = _theme.current_theme()
+    sr, sg, sb = theme.gradient_start
+    er, eg, eb = theme.gradient_end
     for i, ch in enumerate(line):
         if ch == " ":
             out.append(" ")
