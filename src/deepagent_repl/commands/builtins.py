@@ -5,25 +5,23 @@ from __future__ import annotations
 import sys
 
 from rich.table import Table
-from rich.text import Text
 
 import deepagent_repl.ui.theme as _theme
-from deepagent_repl.commands import all_commands, command
+from deepagent_repl.commands import builtin_commands, command
 from deepagent_repl.ui.renderer import console, render_info
 
 
 @command("help", "Show available commands")
 async def cmd_help(client, session, args: str) -> None:
-    cmds = all_commands()
+    cmds = builtin_commands()
     if not cmds:
         render_info("No commands registered.")
         return
 
-    cmd_color = _theme.current_theme().command
     name_width = max((len(name) + 1 for name in cmds), default=10)
 
     table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
-    table.add_column("Command", style=f"bold {cmd_color}", min_width=name_width)
+    table.add_column("Command", style=f"bold {_theme.ACCENT_COLOR}", min_width=name_width)
     table.add_column("Description", style="dim", overflow="fold")
 
     for name, desc in sorted(cmds.items()):

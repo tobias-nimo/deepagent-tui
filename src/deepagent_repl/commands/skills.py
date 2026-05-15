@@ -1,4 +1,4 @@
-"""The /skills command — list discovered skills/tools from the connected agent."""
+"""The /skills command — list discovered skills from the connected agent."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from deepagent_repl.commands import command, dynamic_commands
 from deepagent_repl.ui.renderer import console, render_info
 
 
-@command("skills", "List available skills/tools from the connected agent")
+@command("skills", "List available skills from the connected agent")
 async def cmd_skills(client, session, args: str) -> None:
     # /skills refresh — re-fetch skills_metadata from thread state
     if args.strip().lower() == "refresh":
