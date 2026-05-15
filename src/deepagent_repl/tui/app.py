@@ -218,13 +218,6 @@ class DeepAgentTUI(App):
         color: $text;
     }
 
-    #bottom-stack {
-        dock: bottom;
-        height: auto;
-        background: $background;
-        layout: vertical;
-    }
-
     #autocomplete {
         height: auto;
         max-height: 10;
@@ -278,6 +271,7 @@ class DeepAgentTUI(App):
     }
 
     StatusBar {
+        dock: bottom;
         height: 1;
         padding: 0 2;
         background: $background;
@@ -307,12 +301,11 @@ class DeepAgentTUI(App):
         with VerticalScroll(id="main"):
             yield WelcomeBanner(self.session, id="welcome")
             yield Container(id="messages")
-        with Container(id="bottom-stack"):
             yield Rule(line_style="solid", id="chat-rule-top")
             yield ChatBar(id="chat-bar")
             yield Rule(line_style="solid", id="chat-rule-bottom")
             yield OptionList(id="autocomplete", classes="-hidden")
-            yield StatusBar(self.session, id="status-bar")
+        yield StatusBar(self.session, id="status-bar")
 
     async def on_mount(self) -> None:
         welcome = self.query_one("#welcome", WelcomeBanner)
@@ -355,8 +348,11 @@ class DeepAgentTUI(App):
     def _refresh_autocomplete(self, value: str) -> None:
         ac = self.query_one("#autocomplete", OptionList)
         if not value.startswith("/"):
+            was_visible = "-hidden" not in ac.classes
             ac.add_class("-hidden")
             ac.clear_options()
+            if was_visible:
+                self._scroll_to_input()
             return
 
         from deepagent_repl.commands import all_commands
@@ -369,7 +365,10 @@ class DeepAgentTUI(App):
         )
         ac.clear_options()
         if not matches:
+            was_visible = "-hidden" not in ac.classes
             ac.add_class("-hidden")
+            if was_visible:
+                self._scroll_to_input()
             return
 
         accent = _accent_hex()
@@ -384,11 +383,13 @@ class DeepAgentTUI(App):
             ac.add_option(Option(label, id=name))
         ac.remove_class("-hidden")
         ac.refresh(layout=True)
+        self._scroll_to_input()
 
     def action_hide_autocomplete(self) -> None:
         ac = self.query_one("#autocomplete", OptionList)
         ac.add_class("-hidden")
         ac.clear_options()
+        self._scroll_to_input()
 
     def action_complete_command(self) -> None:
         ac = self.query_one("#autocomplete", OptionList)
