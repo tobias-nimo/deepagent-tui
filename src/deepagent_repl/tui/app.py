@@ -10,10 +10,12 @@ from rich.console import Console, Group
 from rich.console import RenderableType
 from rich.panel import Panel
 from rich.text import Text
+from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
-from textual.widgets import Input, Rule, Static
+from textual.message import Message
+from textual.widgets import Rule, Static, TextArea
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
@@ -154,8 +156,38 @@ def _thinking_renderable(frame: int) -> Text:
     return Text.assemble((spinner, f"bold {accent}"), ("  Thinking…", "dim"))
 
 
+class ChatTextArea(TextArea):
+    """Multi-line chat input. Enter submits, Shift/Alt+Enter or Ctrl+J newline."""
+
+    class Submitted(Message):
+        """Posted when the user presses Enter to send the current buffer."""
+
+        def __init__(self, text_area: "ChatTextArea", value: str) -> None:
+            super().__init__()
+            self.text_area = text_area
+            self.value = value
+
+        @property
+        def control(self) -> "ChatTextArea":
+            return self.text_area
+
+    async def _on_key(self, event: events.Key) -> None:
+        key = event.key
+        if key == "enter":
+            event.stop()
+            event.prevent_default()
+            self.post_message(self.Submitted(self, self.text))
+            return
+        if key in ("shift+enter", "alt+enter", "ctrl+j"):
+            event.stop()
+            event.prevent_default()
+            self.insert("\n", maintain_selection_offset=False)
+            return
+        await super()._on_key(event)
+
+
 class ChatBar(Container):
-    """Bordered, multi-line chat input box with a leading ❯ symbol."""
+    """Multi-line chat input box with a leading ❯ symbol."""
 
     DEFAULT_CSS = ""  # styled via app CSS
 
@@ -165,7 +197,13 @@ class ChatBar(Container):
     def compose(self) -> ComposeResult:
         with Horizontal(id="chat-bar-row"):
             yield Static("❯", id="chat-prompt-icon")
-            yield Input(id="prompt", placeholder="Type your message…")
+            yield ChatTextArea(
+                id="prompt",
+                placeholder="Type your message…",
+                compact=True,
+                highlight_cursor_line=False,
+                soft_wrap=True,
+            )
 
 
 class DeepAgentTUI(App):
@@ -241,14 +279,16 @@ class DeepAgentTUI(App):
     }
 
     ChatBar {
-        height: 1;
+        height: auto;
+        max-height: 12;
         border: none;
         background: $background;
         padding: 0 2;
     }
 
     #chat-bar-row {
-        height: 1;
+        height: auto;
+        max-height: 12;
         background: $background;
     }
 
@@ -267,10 +307,16 @@ class DeepAgentTUI(App):
         background: $background;
         color: #9ca3af;
         padding: 0;
-        height: 1;
+        height: auto;
+        min-height: 1;
+        max-height: 10;
+        scrollbar-size: 0 0;
     }
     #prompt:focus {
         border: none;
+        background: $background;
+    }
+    #prompt .text-area--cursor-line {
         background: $background;
     }
 
@@ -340,18 +386,20 @@ class DeepAgentTUI(App):
         self._flush_capture(cap)
 
         welcome.set_connecting(None)
-        self.query_one("#prompt", Input).focus()
+        self.query_one("#prompt", ChatTextArea).focus()
 
     # ── Input / autocomplete ────────────────────────────────────────────────
 
-    async def on_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id != "prompt":
+    async def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        if event.text_area.id != "prompt":
             return
-        self._refresh_autocomplete(event.value)
+        self._refresh_autocomplete(event.text_area.text)
 
     def _refresh_autocomplete(self, value: str) -> None:
         ac = self.query_one("#autocomplete", OptionList)
-        if not value.startswith("/"):
+        # Slash-command autocomplete is single-line by nature; hide if the
+        # user has started a multi-line message.
+        if not value.startswith("/") or "\n" in value:
             was_visible = "-hidden" not in ac.classes
             ac.add_class("-hidden")
             ac.clear_options()
@@ -404,9 +452,7 @@ class DeepAgentTUI(App):
         first = ac.get_option_at_index(0)
         if first.id is None:
             return
-        prompt = self.query_one("#prompt", Input)
-        prompt.value = f"/{first.id} "
-        prompt.cursor_position = len(prompt.value)
+        self._set_prompt_text(f"/{first.id} ")
         self.action_hide_autocomplete()
 
     def on_option_list_option_selected(
@@ -417,19 +463,25 @@ class DeepAgentTUI(App):
             return
         if event.option_id is None:
             return
-        prompt = self.query_one("#prompt", Input)
-        prompt.value = f"/{event.option_id} "
-        prompt.cursor_position = len(prompt.value)
+        prompt = self._set_prompt_text(f"/{event.option_id} ")
         self.action_hide_autocomplete()
         prompt.focus()
 
+    def _set_prompt_text(self, text: str) -> "ChatTextArea":
+        prompt = self.query_one("#prompt", ChatTextArea)
+        prompt.text = text
+        prompt.move_cursor(prompt.document.end)
+        return prompt
+
     # ── Submit / commands ───────────────────────────────────────────────────
 
-    async def on_input_submitted(self, message: Input.Submitted) -> None:
+    async def on_chat_text_area_submitted(
+        self, message: ChatTextArea.Submitted
+    ) -> None:
         text = message.value.strip()
         if not text:
             return
-        message.input.value = ""
+        message.text_area.text = ""
         self.action_hide_autocomplete()
 
         from deepagent_repl.commands import is_command
