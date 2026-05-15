@@ -11,4 +11,4 @@ async def cmd_model(client, session, args: str) -> None:
     if session.model:
         render_info(f"Using {session.model}")
     else:
-        render_info("Model name is not available")
+        render_info("Model name is not available.")

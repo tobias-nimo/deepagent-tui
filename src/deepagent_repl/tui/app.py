@@ -42,6 +42,10 @@ from deepagent_repl.ui.markdown import render_markdown
 
 _DEBUG = os.environ.get("DEEPAGENT_DEBUG") == "1"
 
+# Muted, serious blue used for slash/question hints and autocomplete entries —
+# distinct from the (often vivid) user accent colour.
+_COMMAND_BLUE = "#5b7ca8"
+
 
 def _accent_hex() -> str:
     """Return the user's accent colour as a hex string usable by Textual CSS."""
@@ -128,21 +132,22 @@ class WelcomeBanner(Static):
         for line in lines:
             rows.append(_gradient_line(line, max_w))
 
-        accent = _accent_hex()
         ws = _workspace_label(self._session)
-        tid_short = (self._session.thread_id or "")[:12]
 
         rows.append(Text(""))
-        bits: list[tuple[str, str]] = []
         if ws:
-            bits.append((ws, ""))
-            bits.append(("  ·  ", "dim"))
-        bits.append(("thread ", "dim"))
-        bits.append((tid_short, "dim"))
-        rows.append(Text.assemble(*bits))
+            rows.append(Text(ws, style="dim"))
 
+        sep = Text("  ◆  ", style="dim")
+        rows.append(Text(""))
         rows.append(
-            Text.assemble(("/help", f"bold {accent}"), (" for commands.", "dim"))
+            Text.assemble(
+                ("/", f"bold {_COMMAND_BLUE}"),
+                (" for commands", "dim"),
+                sep,
+                ("?", f"bold {_COMMAND_BLUE}"),
+                (" for shortcuts", "dim"),
+            )
         )
 
         self.update(Group(*rows))
@@ -228,7 +233,14 @@ class DeepAgentTUI(App):
     }
     #autocomplete.-hidden { display: none; }
 
-    #chat-rule-top, #chat-rule-bottom {
+    #chat-rule-top {
+        height: 1;
+        color: #4b5563;
+        background: $background;
+        padding: 0;
+        margin: 1 0 0 0;
+    }
+    #chat-rule-bottom {
         height: 1;
         color: #4b5563;
         background: $background;
@@ -371,12 +383,11 @@ class DeepAgentTUI(App):
                 self._scroll_to_input()
             return
 
-        accent = _accent_hex()
         name_width = max(len(n) for n, _ in matches) + 2
         for name, desc in matches[:20]:
             padded = f"/{name}".ljust(name_width)
             label = Text.assemble(
-                (padded, f"bold {accent}"),
+                (padded, f"bold {_COMMAND_BLUE}"),
                 ("  ", ""),
                 (desc or "", "dim"),
             )
