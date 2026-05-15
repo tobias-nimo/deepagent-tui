@@ -631,20 +631,9 @@ class DeepAgentTUI(App):
 
             self._write_renderable(_build_interrupt_panel(interrupt))
 
-            from deepagent_repl.storage.rules import match_rule
-
-            tool_name = _interrupt_tool_name(interrupt)
-            auto_action = match_rule(tool_name) if tool_name else None
-            if auto_action == "allow":
-                choice = "approve"
-                self._write_text(f"  Auto-{choice} by rule.", style="dim")
-            elif auto_action == "deny":
+            choice = await self.push_screen_wait(ApprovalScreen(interrupt))
+            if choice is None:
                 choice = "reject"
-                self._write_text(f"  Auto-{choice} by rule.", style="dim")
-            else:
-                choice = await self.push_screen_wait(ApprovalScreen(interrupt))
-                if choice is None:
-                    choice = "reject"
 
             self._write_text(f"  → {choice}", style="dim")
 
@@ -858,20 +847,6 @@ def _gradient_line(line: str, width: int) -> Text:
         b = int(sb + (eb - sb) * t)
         out.append(ch, style=f"bold #{r:02x}{g:02x}{b:02x}")
     return out
-
-
-def _interrupt_tool_name(interrupt: InterruptInfo) -> str | None:
-    if isinstance(interrupt.value, dict):
-        for ar in interrupt.value.get("action_requests", []):
-            if isinstance(ar, dict) and ar.get("name"):
-                return ar["name"]
-        return (
-            interrupt.value.get("tool_name")
-            or interrupt.value.get("action")
-            or interrupt.value.get("name")
-            or interrupt.value.get("type")
-        )
-    return None
 
 
 def _build_interrupt_panel(interrupt: InterruptInfo) -> Panel:

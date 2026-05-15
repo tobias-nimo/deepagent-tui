@@ -5,9 +5,7 @@ import asyncio
 import json
 import sys
 
-import deepagent_repl.commands.approve  # noqa: F401
 import deepagent_repl.commands.builtins  # noqa: F401
-import deepagent_repl.commands.compress  # noqa: F401
 import deepagent_repl.commands.export  # noqa: F401
 import deepagent_repl.commands.graph  # noqa: F401
 import deepagent_repl.commands.image  # noqa: F401
@@ -148,11 +146,6 @@ async def discover_and_register_skills(client: AgentClient, session: Session) ->
 
     if skills:
         render_info(f"Discovered {len(skills)} skill(s) from server metadata. Type /skills to list.")
-
-
-# Token threshold for auto-compression warning (default ~80% of 200k context)
-_COMPRESS_WARN_TOKENS = 160_000
-_compress_warned = False
 
 
 def _flush_usage(state: StreamState, session: Session) -> None:
@@ -348,35 +341,6 @@ async def _prompt_interrupt(
         return chosen, edited_content
 
 
-def _check_approval_rules(interrupt: InterruptInfo) -> str | None:
-    """Check if approval rules auto-resolve this interrupt.
-
-    Returns "approve"/"reject" if a rule matches, or None to prompt the user.
-    """
-    from deepagent_repl.storage.rules import match_rule
-
-    # Extract tool name from interrupt value
-    tool_name = None
-    if isinstance(interrupt.value, dict):
-        tool_name = (
-            interrupt.value.get("tool_name")
-            or interrupt.value.get("action")
-            or interrupt.value.get("name")
-            or interrupt.value.get("type")
-        )
-
-    if not tool_name or not isinstance(tool_name, str):
-        return None
-
-    action = match_rule(tool_name)
-    if action == "allow":
-        return "approve"
-    elif action == "deny":
-        return "reject"
-    # "ask" or None → prompt the user
-    return None
-
-
 async def handle_stream(
     client: AgentClient, session: Session, user_input: str | list,
 ) -> None:
@@ -427,13 +391,7 @@ async def handle_stream(
             for interrupt in interrupts:
                 session.status = "interrupted"
 
-                # Check approval rules before prompting user
-                auto_choice = _check_approval_rules(interrupt)
-                if auto_choice is not None:
-                    chosen, edited = auto_choice, None
-                    render_info(f"Auto-{chosen} by approval rule.")
-                else:
-                    chosen, edited = await _prompt_interrupt(interrupt, prompt_session)
+                chosen, edited = await _prompt_interrupt(interrupt, prompt_session)
 
                 if chosen.lower() in ("reject", "deny", "no"):
                     rejected = True
@@ -516,18 +474,6 @@ async def handle_stream(
             )
         except Exception:
             pass
-
-        # Auto-compression warning
-        global _compress_warned
-        total = session.input_tokens + session.output_tokens
-        if total >= _COMPRESS_WARN_TOKENS and not _compress_warned:
-            _compress_warned = True
-            from deepagent_repl.utils.cost import format_tokens
-
-            render_info(
-                f"Warning: {format_tokens(total)} tokens used. "
-                f"Consider running /compress to reduce context size."
-            )
 
 
 async def run() -> None:
