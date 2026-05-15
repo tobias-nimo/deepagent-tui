@@ -7,7 +7,6 @@ import sys
 
 import deepagent_repl.commands.builtins  # noqa: F401
 import deepagent_repl.commands.export  # noqa: F401
-import deepagent_repl.commands.image  # noqa: F401
 import deepagent_repl.commands.new  # noqa: F401
 import deepagent_repl.commands.fork  # noqa: F401
 import deepagent_repl.commands.resume  # noqa: F401

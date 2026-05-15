@@ -68,6 +68,20 @@ def _user_message_text(text: str) -> Text:
     return Text(f"❯ {text.replace(chr(10), indent)}", style="bold")
 
 
+def _user_message_with_attachments(
+    text: str, image_paths: list[str]
+) -> RenderableType:
+    """User message header followed by dim lines listing attached images."""
+    header = _user_message_text(text)
+    if not image_paths:
+        return header
+    rows: list[RenderableType] = [header]
+    accent = _theme.ACCENT_COLOR
+    for p in image_paths:
+        rows.append(Text(f"  + {Path(p).name}", style=f"dim {accent}"))
+    return Group(*rows)
+
+
 class StatusBar(Static):
     """Single-line bottom status bar that updates from session state."""
 
@@ -173,6 +187,18 @@ class ChatTextArea(TextArea):
         def control(self) -> "ChatTextArea":
             return self.text_area
 
+    class AttachmentsPasted(Message):
+        """Posted when a paste contains one or more image paths."""
+
+        def __init__(self, text_area: "ChatTextArea", paths: list[str]) -> None:
+            super().__init__()
+            self.text_area = text_area
+            self.paths = paths
+
+        @property
+        def control(self) -> "ChatTextArea":
+            return self.text_area
+
     async def _on_key(self, event: events.Key) -> None:
         key = event.key
         if key == "enter":
@@ -186,6 +212,19 @@ class ChatTextArea(TextArea):
             self.insert("\n", maintain_selection_offset=False)
             return
         await super()._on_key(event)
+
+    async def _on_paste(self, event: events.Paste) -> None:
+        from deepagent_repl.utils.images import extract_image_paths
+
+        cleaned, paths = extract_image_paths(event.text)
+        if paths:
+            event.stop()
+            event.prevent_default()
+            self.post_message(self.AttachmentsPasted(self, paths))
+            if cleaned:
+                self.insert(cleaned, maintain_selection_offset=False)
+            return
+        await super()._on_paste(event)
 
 
 class ChatBar(Container):
@@ -264,6 +303,14 @@ class DeepAgentTUI(App):
         scrollbar-size: 0 0;
     }
     #autocomplete.-hidden { display: none; }
+
+    #attachments {
+        height: auto;
+        padding: 0 2;
+        background: $background;
+        color: $text;
+    }
+    #attachments.-hidden { display: none; }
 
     #chat-rule-top {
         height: 1;
@@ -348,12 +395,14 @@ class DeepAgentTUI(App):
         self._active_slot: Static | None = None
         self._thinking_timer = None
         self._thinking_frame: int = 0
+        self._pending_attachments: list[str] = []
 
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="main"):
             yield WelcomeBanner(self.session, id="welcome")
             yield Container(id="messages")
             yield Rule(line_style="solid", id="chat-rule-top")
+            yield Static("", id="attachments", classes="-hidden")
             yield ChatBar(id="chat-bar")
             yield Rule(line_style="solid", id="chat-rule-bottom")
             yield OptionList(id="autocomplete", classes="-hidden")
@@ -443,8 +492,14 @@ class DeepAgentTUI(App):
 
     def action_hide_autocomplete(self) -> None:
         ac = self.query_one("#autocomplete", OptionList)
+        ac_was_visible = "-hidden" not in ac.classes
         ac.add_class("-hidden")
         ac.clear_options()
+        # Esc with autocomplete closed clears any pending attachments — first
+        # Esc dismisses the menu, second Esc drops the staged images.
+        if not ac_was_visible and self._pending_attachments:
+            self._pending_attachments.clear()
+            self._refresh_attachments_preview()
         self._scroll_to_input()
 
     def action_complete_command(self) -> None:
@@ -483,14 +538,30 @@ class DeepAgentTUI(App):
         self, message: ChatTextArea.Submitted
     ) -> None:
         text = message.value.strip()
-        if not text:
+        pending = list(self._pending_attachments)
+        if not text and not pending:
             return
         message.text_area.text = ""
+        if self._pending_attachments:
+            self._pending_attachments.clear()
+            self._refresh_attachments_preview()
         self.action_hide_autocomplete()
 
         from deepagent_repl.commands import is_command
 
-        widget = Static(_user_message_text(text), classes="msg-user")
+        image_paths: list[str] = []
+        if not is_command(text):
+            from deepagent_repl.utils.images import extract_image_paths
+
+            cleaned, paths = extract_image_paths(text)
+            image_paths = pending + paths
+            if image_paths:
+                text = cleaned or "Please analyze this image."
+
+        widget = Static(
+            _user_message_with_attachments(text, image_paths),
+            classes="msg-user",
+        )
         self._messages.mount(widget)
         self._scroll_to_input()
 
@@ -510,8 +581,15 @@ class DeepAgentTUI(App):
         if _DEBUG:
             self._write_text("  [debug] scheduling stream worker", style="dim yellow")
 
+        if image_paths:
+            from deepagent_repl.utils.images import build_multimodal_content
+
+            content: str | list = build_multimodal_content(text, image_paths)
+        else:
+            content = text
+
         worker = self.run_worker(
-            self._submit_message(text),
+            self._submit_message(content),
             exclusive=True,
             name="stream",
             exit_on_error=False,
@@ -590,7 +668,7 @@ class DeepAgentTUI(App):
         if not handled:
             self._write_text(f"  Unknown command: /{name}", style="red")
 
-    async def _submit_message(self, text: str) -> None:
+    async def _submit_message(self, content: str | list) -> None:
         if _DEBUG:
             self._write_text("  [debug] worker started", style="dim yellow")
             self._write_text(
@@ -606,8 +684,14 @@ class DeepAgentTUI(App):
             )
             return
 
+        from deepagent_repl.handlers.stream import extract_text_content
+
+        display_text = (
+            content if isinstance(content, str) else extract_text_content(content)
+        )
+
         self.session.status = "streaming"
-        self.session.messages.append({"role": "user", "content": text})
+        self.session.messages.append({"role": "user", "content": content})
 
         state = StreamState()
         self._stream_buffer = ""
@@ -616,7 +700,7 @@ class DeepAgentTUI(App):
         event_counts: dict[str, int] = {}
         try:
             stream = self.client.stream_message(
-                self.session.thread_id, self.session.assistant_id, text
+                self.session.thread_id, self.session.assistant_id, content
             )
             if _DEBUG:
                 self._write_text("  [debug] stream object created, iterating…", style="dim yellow")
@@ -632,7 +716,7 @@ class DeepAgentTUI(App):
                 await upsert_thread(
                     self.session.thread_id,
                     self.session.graph_id or "",
-                    last_message=text[:100],
+                    last_message=display_text[:100],
                     message_count=len(self.session.messages) + 1,
                 )
             except Exception:
@@ -804,6 +888,31 @@ class DeepAgentTUI(App):
             self.query_one("#welcome", WelcomeBanner).refresh_content()
         except Exception:
             pass
+
+    def on_chat_text_area_attachments_pasted(
+        self, message: ChatTextArea.AttachmentsPasted
+    ) -> None:
+        new = [p for p in message.paths if p not in self._pending_attachments]
+        if not new:
+            return
+        self._pending_attachments.extend(new)
+        self._refresh_attachments_preview()
+
+    def _refresh_attachments_preview(self) -> None:
+        widget = self.query_one("#attachments", Static)
+        paths = self._pending_attachments
+        if not paths:
+            widget.add_class("-hidden")
+            widget.update("")
+            return
+        accent = _theme.ACCENT_COLOR
+        lines = [
+            Text(f"+ {Path(p).name}", style=f"dim {accent}") for p in paths
+        ]
+        hint = Text("  esc to clear", style="dim")
+        widget.update(Group(*lines, hint))
+        widget.remove_class("-hidden")
+        self._scroll_to_input()
 
     async def _tui_pick(
         self,

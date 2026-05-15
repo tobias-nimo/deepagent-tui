@@ -16,6 +16,21 @@ _IMAGE_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Match image paths as they typically arrive from a terminal drag-and-drop:
+# single-quoted, double-quoted, or bare with backslash-escaped spaces.
+_IMAGE_DROP_RE = re.compile(
+    r"""
+    (?:
+        '(?P<sq>/[^']+?\.(?:png|jpe?g|gif|bmp|webp|svg|tiff|ico))'
+        |
+        "(?P<dq>/[^"]+?\.(?:png|jpe?g|gif|bmp|webp|svg|tiff|ico))"
+        |
+        (?P<bare>/(?:[^\s'"\\]|\\.)+?\.(?:png|jpe?g|gif|bmp|webp|svg|tiff|ico))(?=$|[\s)"',;])
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
 
 def is_image_path(path: str) -> bool:
     """Check if a path looks like an image file."""
@@ -26,6 +41,29 @@ def detect_image_paths(text: str) -> list[str]:
     """Extract file paths that look like images from a text string."""
     matches = _IMAGE_PATH_RE.findall(text)
     return [m for m in matches if Path(m).exists()]
+
+
+def extract_image_paths(text: str) -> tuple[str, list[str]]:
+    """Pull dropped image paths out of a message. Returns the message with
+    the path tokens removed (whitespace collapsed) and the list of resolved
+    paths. Only existing files with image extensions are returned."""
+    paths: list[str] = []
+    spans: list[tuple[int, int]] = []
+    for m in _IMAGE_DROP_RE.finditer(text):
+        raw = m.group("sq") or m.group("dq") or m.group("bare")
+        if not raw:
+            continue
+        clean = raw.replace("\\ ", " ").replace("\\\\", "\\")
+        p = Path(clean).expanduser()
+        if p.is_file() and is_image_path(str(p)):
+            paths.append(str(p))
+            spans.append(m.span())
+
+    cleaned = text
+    for start, end in reversed(spans):
+        cleaned = cleaned[:start] + cleaned[end:]
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned, paths
 
 
 def encode_image_base64(path: str) -> str:
