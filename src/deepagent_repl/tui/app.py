@@ -477,6 +477,16 @@ class DeepAgentTUI(App):
         from deepagent_repl.commands import dispatch as dispatch_command
         from deepagent_repl.commands import dynamic_commands
 
+        parts = text[1:].split(None, 1)
+        name = parts[0] if parts else ""
+
+        # /clear in TUI: clear the message log directly. The registered command
+        # writes ANSI clear codes to the rich console, which the TUI captures
+        # and discards — so the underlying command is a no-op here.
+        if name == "clear":
+            self.action_clear_log()
+            return
+
         with _capture_console() as cap:
             try:
                 handled = await dispatch_command(self.client, self.session, text)
@@ -485,6 +495,11 @@ class DeepAgentTUI(App):
                 self._write_text(f"  Command error: {e}", style="red")
                 if _DEBUG:
                     self._write_text(traceback.format_exc(), style="red")
+
+        # /new clears the screen before creating a new thread; mirror that in
+        # the TUI by wiping the message log after the command runs.
+        if name == "new" and handled:
+            self.action_clear_log()
 
         self._flush_capture(cap)
 
