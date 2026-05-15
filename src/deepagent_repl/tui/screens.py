@@ -141,7 +141,7 @@ class PickerScreen(Screen[Any]):
         self,
         items: list[PickerItem],
         heading: str = "Select",
-        search_placeholder: str = "Type to search…",
+        search_placeholder: str = "Search chats...",
         hint: str | None = None,
         max_visible: int | None = None,
     ) -> None:
@@ -266,18 +266,14 @@ class PickerScreen(Screen[Any]):
     # ── rendering ──────────────────────────────────────────────────────────
 
     def _refresh_title(self) -> None:
-        n = len(self._filtered)
-        pos = (self._selected + 1) if n else 0
-        accent = _theme.current_theme().accent
         title = Text()
         title.append(self._heading, style="bold")
-        title.append(f"  ({pos} of {n})", style=f"dim {accent}")
         self.query_one("#picker-title", Static).update(title)
 
     def _refresh_search(self) -> None:
         accent = _theme.current_theme().accent
         line = Text()
-        line.append("⌕  ", style="dim")
+        line.append("🔍  ", style="bold")
         if self._query:
             line.append(self._query, style=f"bold {accent}")
             line.append("▍", style=accent)
