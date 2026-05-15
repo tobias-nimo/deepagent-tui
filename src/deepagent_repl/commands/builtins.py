@@ -39,7 +39,7 @@ async def cmd_clear(client, session, args: str) -> None:
     console.clear()
 
 
-@command("exit", "Exit the REPL")
+@command("exit", "Exit the TUI")
 async def cmd_exit(client, session, args: str) -> None:
     render_info("Goodbye!")
     sys.exit(0)

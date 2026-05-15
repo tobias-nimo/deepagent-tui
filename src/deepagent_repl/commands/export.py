@@ -147,6 +147,6 @@ async def cmd_copy(client, session, args: str) -> None:
     transcript = _build_transcript(messages)
 
     if _copy_to_clipboard(transcript):
-        render_info("Conversation copied to clipboard")
+        render_info("Conversation copied to clipboard.")
     else:
         render_error("Failed to copy to clipboard (install xsel, xclip, or wl-clipboard)")
