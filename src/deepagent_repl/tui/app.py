@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import os
 import traceback
+from pathlib import Path
 from typing import Any
 
 from rich.console import Console, Group
@@ -63,15 +64,13 @@ class StatusBar(Static):
         from deepagent_repl.utils.cost import format_cost, format_tokens
 
         s = self._session
-        cwd = os.path.basename(os.getcwd()) or "/"
         graph = s.graph_id or "—"
-        tid_short = (s.thread_id or "—")[:8]
         model = s.model or "—"
         toks = f"{format_tokens(s.input_tokens)}↑ {format_tokens(s.output_tokens)}↓"
         cost = format_cost(s.total_cost)
         status_tag = f" [{s.status}]" if s.status != "idle" else ""
         self.update(
-            f" {cwd} │ {graph} │ {model} │ thread {tid_short} │ {toks} │ {cost}{status_tag}"
+            f" {graph} │ {model} │ {toks} │ {cost}{status_tag}"
         )
 
 
@@ -480,13 +479,12 @@ class DeepAgentTUI(App):
         if name == "new" and handled:
             self.action_clear_log()
 
-        # /theme repaints the welcome banner so the gradient + command color
-        # reflect the new palette immediately.
-        if name == "theme" and handled:
-            try:
-                self.query_one("#welcome", WelcomeBanner).refresh_content()
-            except Exception:
-                pass
+        # Repaint the welcome banner after any command: /theme changes the
+        # gradient, and other commands (e.g. /export) may set workspace_root.
+        try:
+            self.query_one("#welcome", WelcomeBanner).refresh_content()
+        except Exception:
+            pass
 
         self._flush_capture(cap)
 
@@ -675,10 +673,12 @@ class DeepAgentTUI(App):
             path = sk.get("path") if isinstance(sk, dict) else None
             if not path:
                 continue
-            marker = "/.claude/skills/"
-            if marker in path:
-                self.session.workspace_root = path.split(marker, 1)[0]
-                return
+            try:
+                root = str(Path(path).parents[3])
+            except IndexError:
+                continue
+            self._apply_workspace_root(root)
+            return
 
         try:
             state = await self.client.get_thread_state(self.session.thread_id)
@@ -691,8 +691,15 @@ class DeepAgentTUI(App):
         ):
             v = values.get(key) if isinstance(values, dict) else None
             if isinstance(v, str) and v.startswith("/"):
-                self.session.workspace_root = v
+                self._apply_workspace_root(v)
                 return
+
+    def _apply_workspace_root(self, path: str) -> None:
+        self.session.workspace_root = path
+        try:
+            self.query_one("#welcome", WelcomeBanner).refresh_content()
+        except Exception:
+            pass
 
     def action_clear_log(self) -> None:
         container = self.query_one("#messages", Container)
