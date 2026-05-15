@@ -29,8 +29,6 @@ async def cmd_fork(client, session, args: str) -> None:
         render_error("No active thread.")
         return
 
-    render_info("Fetching conversation history...")
-
     try:
         history = await client.get_thread_history(session.thread_id)
     except Exception as e:
@@ -115,14 +113,23 @@ async def cmd_fork(client, session, args: str) -> None:
 
     idx, text, checkpoint_entry = unique_checkpoints[choice]
 
-    render_info(f"Forking from message #{choice + 1}: {text[:60]}...")
-
     try:
         values = checkpoint_entry.get("values", {})
         messages = values.get("messages", [])
-        fork_messages = messages[: idx + 1]
+        # Keep the chosen user message AND the assistant turn that responded to
+        # it (which may include tool calls/results). Stop at the next user
+        # message — that's where the branch should diverge.
+        end = len(messages)
+        for j in range(idx + 1, len(messages)):
+            role = messages[j].get("role") or messages[j].get("type", "")
+            if role in ("user", "human"):
+                end = j
+                break
+        fork_messages = messages[:end]
 
-        new_thread_id = await client.copy_thread_with_messages(fork_messages)
+        new_thread_id = await client.copy_thread_with_messages(
+            fork_messages, graph_id=session.graph_id,
+        )
 
         session.thread_id = new_thread_id
         session.messages = []
@@ -132,9 +139,13 @@ async def cmd_fork(client, session, args: str) -> None:
 
         await upsert_thread(new_thread_id, session.graph_id or "")
 
-        render_info(f"Forked to new thread: {new_thread_id}")
-        render_info(f"  {len(fork_messages)} message(s) preserved.")
-        render_info("You can now continue the conversation from this point.")
+        replay = getattr(session, "replay", None)
+        if replay is not None:
+            await replay(fork_messages)
+            render_info(f"Forked from message #{choice + 1}.")
+            return
+
+        render_info(f"Forked from message #{choice + 1}.")
 
     except Exception as e:
         msg = str(e)

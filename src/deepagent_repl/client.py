@@ -113,11 +113,16 @@ class AgentClient:
         state = await self.get_thread_state(thread_id)
         return state.get("values", {})
 
-    async def copy_thread_with_messages(self, messages: list[dict]) -> str:
-        """Create a new thread pre-loaded with the given messages."""
-        thread = await self._client.threads.create()
+    async def copy_thread_with_messages(
+        self, messages: list[dict], graph_id: str | None = None,
+    ) -> str:
+        """Create a new thread pre-loaded with the given messages.
+
+        graph_id must be set so update_state can merge against the right graph;
+        otherwise the server rejects the patch with "no assigned graph ID".
+        """
+        thread = await self._client.threads.create(graph_id=graph_id or None)
         thread_id = thread["thread_id"]
-        # Patch the thread state to include the summary messages
         await self._client.threads.update_state(
             thread_id=thread_id,
             values={"messages": messages},
