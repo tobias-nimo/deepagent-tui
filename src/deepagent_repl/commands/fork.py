@@ -80,7 +80,7 @@ async def cmd_fork(client, session, args: str) -> None:
     unique_checkpoints.sort(key=lambda x: x[0])
     unique_checkpoints = unique_checkpoints[-10:]
 
-    # Build display options for arrow-key selector
+    # Build display options
     options = []
     for i, (idx, text, _entry) in enumerate(unique_checkpoints, 1):
         preview = text.replace("\n", " ").strip()
@@ -88,13 +88,31 @@ async def cmd_fork(client, session, args: str) -> None:
             preview = preview[:67] + "..."
         options.append(f"#{i}  {preview}")
 
-    render_info("Select a message to fork from (↑↓ to move, Enter to confirm, Ctrl+C to cancel):")
-    chosen = await select_option_interactive(options)
-    if chosen is None:
-        render_info("Cancelled.")
-        return
+    picker = getattr(session, "picker", None)
+    if picker is not None:
+        from deepagent_repl.tui.screens import PickerItem
 
-    choice = options.index(chosen)
+        items = [
+            PickerItem(
+                title=preview.replace("\n", " ").strip()[:200],
+                subtitle=f"message #{i}  ·  {len(preview)} chars",
+                value=i - 1,
+            )
+            for i, (idx, preview, _entry) in enumerate(unique_checkpoints, 1)
+        ]
+        chosen_idx = await picker(items, "Fork from message")
+        if chosen_idx is None:
+            render_info("Cancelled.")
+            return
+        choice = chosen_idx
+    else:
+        render_info("Select a message to fork from (↑↓ to move, Enter to confirm, Ctrl+C to cancel):")
+        chosen = await select_option_interactive(options)
+        if chosen is None:
+            render_info("Cancelled.")
+            return
+        choice = options.index(chosen)
+
     idx, text, checkpoint_entry = unique_checkpoints[choice]
 
     render_info(f"Forking from message #{choice + 1}: {text[:60]}...")

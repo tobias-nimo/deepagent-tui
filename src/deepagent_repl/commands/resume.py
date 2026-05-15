@@ -2,14 +2,45 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from deepagent_repl.commands import command
 from deepagent_repl.storage.db import get_thread, list_threads
 from deepagent_repl.ui.prompt import select_option_interactive
 from deepagent_repl.ui.renderer import render_error, render_info
 
 
+def _relative_time(ts: str | None) -> str:
+    """Format a SQLite 'YYYY-MM-DD HH:MM:SS' timestamp as a relative
+    string like '14 hours ago'. Returns empty string if unparseable."""
+    if not ts:
+        return ""
+    try:
+        dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return ts
+    delta = datetime.now(timezone.utc) - dt
+    secs = int(delta.total_seconds())
+    if secs < 60:
+        return "just now"
+    if secs < 3600:
+        m = secs // 60
+        return f"{m} minute{'s' if m != 1 else ''} ago"
+    if secs < 86400:
+        h = secs // 3600
+        return f"{h} hour{'s' if h != 1 else ''} ago"
+    if secs < 86400 * 30:
+        d = secs // 86400
+        return f"{d} day{'s' if d != 1 else ''} ago"
+    if secs < 86400 * 365:
+        mo = secs // (86400 * 30)
+        return f"{mo} month{'s' if mo != 1 else ''} ago"
+    y = secs // (86400 * 365)
+    return f"{y} year{'s' if y != 1 else ''} ago"
+
+
 def _format_option(t: dict, is_current: bool) -> str:
-    """Build a single-line label for a thread selector entry."""
+    """Build a single-line label for the CLI prompt_toolkit picker."""
     marker = "* " if is_current else "  "
     tid = t["id"][:10] + "…"
     graph = t["graph_id"] or ""
@@ -19,6 +50,33 @@ def _format_option(t: dict, is_current: bool) -> str:
     return f"{marker}{tid}  {graph:<12}  {msgs:>3} msgs  {last:<30}  {updated}"
 
 
+def _row_title(t: dict) -> str:
+    """Title line for the TUI picker — the last message, falling back to id."""
+    last = (t.get("last_message") or "").strip()
+    if last:
+        return last
+    return t["id"]
+
+
+def _row_subtitle(t: dict, is_current: bool) -> str:
+    """Subtitle line — '14 hours ago · <graph> · 12 msgs' (+ current marker)."""
+    parts: list[str] = []
+    rel = _relative_time(t.get("updated_at"))
+    if rel:
+        parts.append(rel)
+    graph = (t.get("graph_id") or "").strip()
+    if graph:
+        parts.append(graph)
+    msgs = t.get("message_count")
+    if msgs is not None:
+        parts.append(f"{msgs} msg{'s' if msgs != 1 else ''}")
+    parts.append(t["id"][:8])
+    line = "  ·  ".join(parts)
+    if is_current:
+        line = f"current  ·  {line}"
+    return line
+
+
 @command("resume", "Resume a past conversation thread")
 async def cmd_resume(client, session, args: str) -> None:
     # If a thread ID was passed directly, try to resume it
@@ -26,12 +84,31 @@ async def cmd_resume(client, session, args: str) -> None:
         await _resume_by_id(client, session, args.strip())
         return
 
-    threads = await list_threads(limit=10)
+    threads = await list_threads(limit=50)
     if not threads:
         render_info("No saved threads to resume.")
         return
 
-    options = [_format_option(t, t["id"] == session.thread_id) for t in threads]
+    picker = getattr(session, "picker", None)
+    if picker is not None:
+        from deepagent_repl.tui.screens import PickerItem
+
+        items = [
+            PickerItem(
+                title=_row_title(t),
+                subtitle=_row_subtitle(t, t["id"] == session.thread_id),
+                value=t["id"],
+            )
+            for t in threads
+        ]
+        chosen_id = await picker(items, "Resume session")
+        if chosen_id is None:
+            render_info("Cancelled.")
+            return
+        await _switch_thread(client, session, chosen_id)
+        return
+
+    options = [_format_option(t, t["id"] == session.thread_id) for t in threads[:10]]
     chosen = await select_option_interactive(options)
     if chosen is None:
         render_info("Cancelled.")

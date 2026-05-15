@@ -40,7 +40,7 @@ from deepagent_repl.handlers.tools import (
 )
 from deepagent_repl.session import Session
 from deepagent_repl.storage.db import upsert_thread
-from deepagent_repl.tui.screens import ApprovalScreen
+from deepagent_repl.tui.screens import ApprovalScreen, PickerItem, PickerScreen
 from deepagent_repl.ui.markdown import render_markdown
 
 _DEBUG = os.environ.get("DEEPAGENT_DEBUG") == "1"
@@ -360,6 +360,7 @@ class DeepAgentTUI(App):
         yield StatusBar(self.session, id="status-bar")
 
     async def on_mount(self) -> None:
+        self.session.picker = self._tui_pick
         welcome = self.query_one("#welcome", WelcomeBanner)
         welcome.set_connecting(settings.langgraph_url)
 
@@ -493,7 +494,16 @@ class DeepAgentTUI(App):
         self._scroll_to_input()
 
         if is_command(text):
-            await self._run_command(text)
+            # Commands run in a worker so they can await modal screens
+            # (push_screen_wait) without blocking the input widget's
+            # message pump — that's what froze /resume's picker before.
+            worker = self.run_worker(
+                self._run_command(text),
+                exclusive=True,
+                name="command",
+                exit_on_error=False,
+            )
+            self._track_worker(worker)
             return
 
         if _DEBUG:
@@ -793,6 +803,18 @@ class DeepAgentTUI(App):
             self.query_one("#welcome", WelcomeBanner).refresh_content()
         except Exception:
             pass
+
+    async def _tui_pick(
+        self,
+        items: list[PickerItem],
+        heading: str = "Select",
+        hint: str | None = None,
+    ) -> Any:
+        """Inline list picker for /resume, /fork, and similar commands.
+        Called from a worker (commands run as workers in the TUI), so it
+        can use push_screen_wait directly to suspend the worker until the
+        user picks or cancels."""
+        return await self.push_screen_wait(PickerScreen(items, heading, hint=hint))
 
     def action_clear_log(self) -> None:
         container = self.query_one("#messages", Container)
