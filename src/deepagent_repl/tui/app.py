@@ -54,16 +54,18 @@ def _command_color() -> str:
 def _user_message_text(text: str) -> Text:
     """Render a submitted message. If it starts with a slash command, paint
     the `/name` token in the command accent color so it stands out from the
-    rest of the bold user message."""
+    rest of the bold user message. Subsequent lines are indented to align
+    past the leading `❯ ` prefix."""
+    indent = "\n  "
     if text.startswith("/"):
         head, sep, tail = text.partition(" ")
         cmd = _command_color()
         out = Text("❯ ", style="bold")
-        out.append(head, style=f"bold {cmd}")
+        out.append(head.replace("\n", indent), style=f"bold {cmd}")
         if sep:
-            out.append(sep + tail, style="bold")
+            out.append((sep + tail).replace("\n", indent), style="bold")
         return out
-    return Text(f"❯ {text}", style="bold")
+    return Text(f"❯ {text.replace(chr(10), indent)}", style="bold")
 
 
 class StatusBar(Static):
