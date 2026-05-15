@@ -23,43 +23,8 @@ def _extract_text(content) -> str:
     return str(content)
 
 
-def _capture_header(session) -> str:
-    """Render the startup header to plain text without printing to the terminal."""
-    import io
-
-    import deepagent_repl.ui.renderer as renderer_module
-    from rich.console import Console
-
-    from deepagent_repl.config import settings
-
-    buf = io.StringIO()
-    cap = Console(file=buf, width=renderer_module.console.width, highlight=False)
-
-    old = renderer_module.console
-    renderer_module.console = cap
-    try:
-        renderer_module.render_header(
-            graph_id=session.graph_id,
-            server_url=settings.langgraph_url,
-            thread_id=session.thread_id,
-            num_skills=len(session.discovered_tools),
-        )
-        renderer_module.render_shortcut_hint()
-    finally:
-        renderer_module.console = old
-
-    buf.seek(0)
-    return buf.read().rstrip()
-
-
-def _build_transcript(session, messages: list[dict]) -> str:
+def _build_transcript(messages: list[dict]) -> str:
     lines: list[str] = []
-
-    # Header — the same startup banner shown in the terminal
-    lines.append("```")
-    lines.append(_capture_header(session))
-    lines.append("```")
-    lines.append("")
 
     for msg in messages:
         role = msg.get("role") or msg.get("type", "")
@@ -164,7 +129,7 @@ async def cmd_export(client, session, args: str) -> None:
     if messages is None:
         return
 
-    transcript = _build_transcript(session, messages)
+    transcript = _build_transcript(messages)
 
     workspace = await _resolve_workspace(client, session)
     path = workspace / "history" / f"{session.thread_id}.md"
@@ -179,7 +144,7 @@ async def cmd_copy(client, session, args: str) -> None:
     if messages is None:
         return
 
-    transcript = _build_transcript(session, messages)
+    transcript = _build_transcript(messages)
 
     if _copy_to_clipboard(transcript):
         render_info("Conversation copied to clipboard")
