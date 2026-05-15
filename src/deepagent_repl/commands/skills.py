@@ -45,9 +45,10 @@ async def cmd_skills(client, session, args: str) -> None:
         render_info("Send a message first, then use /skills refresh to fetch from agent state.")
         return
 
-    table = Table(show_header=True, header_style="bold", expand=False, padding=(0, 1))
-    table.add_column("Skill", style=f"bold {_theme.ACCENT_COLOR}", min_width=20)
-    table.add_column("Description", style="dim")
+    name_width = max((len(name) + 1 for name in skills), default=10)
+    table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
+    table.add_column("Skill", style=f"bold {_theme.ACCENT_COLOR}", min_width=name_width)
+    table.add_column("Description", style="dim", overflow="fold")
 
     for name, desc in sorted(skills.items()):
         table.add_row(f"/{name}", desc or "—")

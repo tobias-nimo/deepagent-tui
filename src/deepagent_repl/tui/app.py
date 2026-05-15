@@ -6,12 +6,15 @@ import traceback
 from typing import Any
 
 from rich.console import Console, Group
+from rich.console import RenderableType
 from rich.panel import Panel
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container
-from textual.widgets import Input, RichLog, Static
+from textual.containers import Container, Horizontal, VerticalScroll
+from textual.widgets import Input, Rule, Static
+from textual.widgets import OptionList
+from textual.widgets.option_list import Option
 
 import deepagent_repl.ui.theme as _theme
 from deepagent_repl.client import AgentClient
@@ -92,7 +95,7 @@ class StatusBar(Static):
 
 
 class WelcomeBanner(Static):
-    """Pinned top banner: ASCII graph name, workspace · thread, /help."""
+    """Top banner: ASCII graph name, workspace · thread, /help. Scrolls with content."""
 
     def __init__(self, session: Session, **kwargs: Any) -> None:
         super().__init__("", **kwargs)
@@ -145,6 +148,29 @@ class WelcomeBanner(Static):
         self.update(Group(*rows))
 
 
+_THINKING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+
+def _thinking_renderable(frame: int) -> Text:
+    spinner = _THINKING_FRAMES[frame % len(_THINKING_FRAMES)]
+    accent = _theme.ACCENT_COLOR
+    return Text.assemble((spinner, f"bold {accent}"), ("  Thinking…", "dim"))
+
+
+class ChatBar(Container):
+    """Bordered, multi-line chat input box with a leading ❯ symbol."""
+
+    DEFAULT_CSS = ""  # styled via app CSS
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="chat-bar-row"):
+            yield Static("❯", id="chat-prompt-icon")
+            yield Input(id="prompt", placeholder="Type your message…")
+
+
 class DeepAgentTUI(App):
     """Textual front-end for the Deep Agent REPL."""
 
@@ -152,60 +178,118 @@ class DeepAgentTUI(App):
     Screen {
         layout: vertical;
         background: $background;
+        scrollbar-size: 0 0;
     }
 
-    #log {
+    #main {
         height: 1fr;
-        padding: 1 2;
         background: $background;
-        border: none;
-        scrollbar-size: 1 1;
+        padding: 0;
+        scrollbar-size: 0 0;
+        overflow-x: hidden;
+        overflow-y: auto;
     }
 
-    #streaming {
+    #welcome {
+        height: auto;
+        padding: 1 2 0 2;
+        background: $background;
+    }
+
+    #messages {
         height: auto;
         padding: 0 2;
         background: $background;
+    }
+
+    #messages .msg {
+        height: auto;
+        padding: 0;
+        margin: 1 0 0 0;
+        background: $background;
         color: $text;
     }
-    #streaming.-hidden { display: none; }
 
-    #input-wrap {
+    #messages .msg-user {
+        height: auto;
+        padding: 0;
+        margin: 1 0 1 0;
+        background: $background;
+        color: $text;
+    }
+
+    #bottom-stack {
         dock: bottom;
         height: auto;
-        padding: 0 1 0 1;
         background: $background;
+        layout: vertical;
+    }
+
+    #autocomplete {
+        height: auto;
+        max-height: 10;
+        padding: 0 2;
+        background: $background;
+        border: none;
+        scrollbar-size: 0 0;
+    }
+    #autocomplete.-hidden { display: none; }
+
+    #chat-rule-top, #chat-rule-bottom {
+        height: 1;
+        color: #4b5563;
+        background: $background;
+        padding: 0;
+        margin: 0;
+    }
+
+    ChatBar {
+        height: 1;
+        border: none;
+        background: $background;
+        padding: 0 2;
+    }
+
+    #chat-bar-row {
+        height: 1;
+        background: $background;
+    }
+
+    #chat-prompt-icon {
+        width: 2;
+        height: 1;
+        color: #6b7280;
+        text-style: bold;
+        background: $background;
+        padding: 0;
+        margin: 0 1 0 0;
     }
 
     #prompt {
-        border: round ACCENT;
+        border: none;
         background: $background;
-        color: $text;
-        padding: 0 1;
+        color: #9ca3af;
+        padding: 0;
+        height: 1;
     }
     #prompt:focus {
-        border: round ACCENT;
+        border: none;
         background: $background;
     }
 
     StatusBar {
-        dock: bottom;
         height: 1;
         padding: 0 2;
         background: $background;
         color: $text-muted;
-    }
-
-    WelcomeBanner {
-        height: auto;
-        padding: 1 2 0 2;
-        background: $background;
     }
     """.replace("ACCENT", _accent_hex())
 
     BINDINGS = [
         Binding("ctrl+c", "quit", "Quit", show=False, priority=True),
         Binding("ctrl+l", "clear_log", "Clear", show=False),
+        Binding("escape", "hide_autocomplete", "Hide autocomplete", show=False),
+        Binding("tab", "complete_command", "Complete", show=False, priority=True),
     ]
 
     def __init__(self) -> None:
@@ -215,19 +299,22 @@ class DeepAgentTUI(App):
         )
         self.session = Session()
         self._stream_buffer: str = ""
+        self._active_slot: Static | None = None
+        self._thinking_timer = None
+        self._thinking_frame: int = 0
 
     def compose(self) -> ComposeResult:
-        yield WelcomeBanner(self.session, id="welcome")
-        yield RichLog(
-            id="log", auto_scroll=True, wrap=True, markup=False, highlight=False
-        )
-        yield Static("", id="streaming", classes="-hidden")
-        with Container(id="input-wrap"):
-            yield Input(id="prompt", placeholder="Type your message…  (/help · ctrl+l · ctrl+c)")
-        yield StatusBar(self.session, id="status-bar")
+        with VerticalScroll(id="main"):
+            yield WelcomeBanner(self.session, id="welcome")
+            yield Container(id="messages")
+        with Container(id="bottom-stack"):
+            yield Rule(line_style="solid", id="chat-rule-top")
+            yield ChatBar(id="chat-bar")
+            yield Rule(line_style="solid", id="chat-rule-bottom")
+            yield OptionList(id="autocomplete", classes="-hidden")
+            yield StatusBar(self.session, id="status-bar")
 
     async def on_mount(self) -> None:
-        log = self._log_widget
         welcome = self.query_one("#welcome", WelcomeBanner)
         welcome.set_connecting(settings.langgraph_url)
 
@@ -238,13 +325,13 @@ class DeepAgentTUI(App):
                 ok = await connect(self.client, self.session)
             except Exception as e:  # noqa: BLE001
                 ok = False
-                log.write(Text(f"  Connection error: {e}", style="bold red"))
+                self._write_text(f"  Connection error: {e}", style="bold red")
                 if _DEBUG:
-                    log.write(Text(traceback.format_exc(), style="red"))
-        _flush_capture_to_log(log, cap)
+                    self._write_text(traceback.format_exc(), style="red")
+        self._flush_capture(cap)
 
         if not ok:
-            log.write(Text("  Failed to connect — exiting in 3s.", style="bold red"))
+            self._write_text("  Failed to connect — exiting in 3s.", style="bold red")
             self.set_timer(3.0, self.exit)
             return
 
@@ -252,22 +339,97 @@ class DeepAgentTUI(App):
             try:
                 await discover_and_register_skills(self.client, self.session)
             except Exception as e:  # noqa: BLE001
-                log.write(Text(f"  Skill discovery skipped: {e}", style="dim red"))
-        _flush_capture_to_log(log, cap)
+                self._write_text(f"  Skill discovery skipped: {e}", style="dim red")
+        self._flush_capture(cap)
 
         welcome.set_connecting(None)
         self.query_one("#prompt", Input).focus()
+
+    # ── Input / autocomplete ────────────────────────────────────────────────
+
+    async def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id != "prompt":
+            return
+        self._refresh_autocomplete(event.value)
+
+    def _refresh_autocomplete(self, value: str) -> None:
+        ac = self.query_one("#autocomplete", OptionList)
+        if not value.startswith("/"):
+            ac.add_class("-hidden")
+            ac.clear_options()
+            return
+
+        from deepagent_repl.commands import all_commands
+
+        prefix = value[1:].split(None, 1)[0] if len(value) > 1 else ""
+        matches = sorted(
+            (name, desc)
+            for name, desc in all_commands().items()
+            if name.startswith(prefix)
+        )
+        ac.clear_options()
+        if not matches:
+            ac.add_class("-hidden")
+            return
+
+        accent = _accent_hex()
+        name_width = max(len(n) for n, _ in matches) + 2
+        for name, desc in matches[:20]:
+            padded = f"/{name}".ljust(name_width)
+            label = Text.assemble(
+                (padded, f"bold {accent}"),
+                ("  ", ""),
+                (desc or "", "dim"),
+            )
+            ac.add_option(Option(label, id=name))
+        ac.remove_class("-hidden")
+        ac.refresh(layout=True)
+
+    def action_hide_autocomplete(self) -> None:
+        ac = self.query_one("#autocomplete", OptionList)
+        ac.add_class("-hidden")
+        ac.clear_options()
+
+    def action_complete_command(self) -> None:
+        ac = self.query_one("#autocomplete", OptionList)
+        if "-hidden" in ac.classes:
+            return
+        if ac.option_count == 0:
+            return
+        first = ac.get_option_at_index(0)
+        if first.id is None:
+            return
+        prompt = self.query_one("#prompt", Input)
+        prompt.value = f"/{first.id} "
+        prompt.cursor_position = len(prompt.value)
+        self.action_hide_autocomplete()
+
+    def on_option_list_option_selected(
+        self, event: OptionList.OptionSelected
+    ) -> None:
+        # Only the autocomplete OptionList lives in the main app.
+        if event.option_list.id != "autocomplete":
+            return
+        if event.option_id is None:
+            return
+        prompt = self.query_one("#prompt", Input)
+        prompt.value = f"/{event.option_id} "
+        prompt.cursor_position = len(prompt.value)
+        self.action_hide_autocomplete()
+        prompt.focus()
+
+    # ── Submit / commands ───────────────────────────────────────────────────
 
     async def on_input_submitted(self, message: Input.Submitted) -> None:
         text = message.value.strip()
         if not text:
             return
         message.input.value = ""
+        self.action_hide_autocomplete()
 
-        log = self._log_widget
-        log.write(Text(""))
-        log.write(Text(f"❯ {text}", style="bold"))
-        log.write(Text(""))
+        widget = Static(Text(f"❯ {text}", style="bold"), classes="msg-user")
+        self._messages.mount(widget)
+        self._scroll_to_input()
 
         from deepagent_repl.commands import is_command
 
@@ -276,7 +438,7 @@ class DeepAgentTUI(App):
             return
 
         if _DEBUG:
-            log.write(Text("  [debug] scheduling stream worker", style="dim yellow"))
+            self._write_text("  [debug] scheduling stream worker", style="dim yellow")
 
         worker = self.run_worker(
             self._submit_message(text),
@@ -287,18 +449,15 @@ class DeepAgentTUI(App):
         self._track_worker(worker)
 
     def _track_worker(self, worker) -> None:
-        """Surface worker failures into the log so they aren't silently swallowed."""
-        log = self._log_widget
-
         async def _watch() -> None:
             await worker.wait()
             err = getattr(worker, "error", None)
             if err is not None:
-                log.write(Text(f"  Worker failed: {err!r}", style="bold red"))
+                self._write_text(f"  Worker failed: {err!r}", style="bold red")
                 if _DEBUG:
                     import traceback as _tb
                     tb_str = "".join(_tb.format_exception(type(err), err, err.__traceback__))
-                    log.write(Text(tb_str, style="red"))
+                    self._write_text(tb_str, style="red")
 
         self.run_worker(_watch(), exclusive=False, name="worker-watch")
 
@@ -306,18 +465,16 @@ class DeepAgentTUI(App):
         from deepagent_repl.commands import dispatch as dispatch_command
         from deepagent_repl.commands import dynamic_commands
 
-        log = self._log_widget
-
         with _capture_console() as cap:
             try:
                 handled = await dispatch_command(self.client, self.session, text)
             except Exception as e:  # noqa: BLE001
                 handled = True
-                log.write(Text(f"  Command error: {e}", style="red"))
+                self._write_text(f"  Command error: {e}", style="red")
                 if _DEBUG:
-                    log.write(Text(traceback.format_exc(), style="red"))
+                    self._write_text(traceback.format_exc(), style="red")
 
-        _flush_capture_to_log(log, cap)
+        self._flush_capture(cap)
 
         if not handled:
             parts = text[1:].split(None, 1)
@@ -327,7 +484,7 @@ class DeepAgentTUI(App):
                 prompt = f"Use the {name} skill"
                 if args:
                     prompt += f": {args}"
-                log.write(Text(f"  Invoking skill: {name}", style="dim"))
+                self._write_text(f"  Invoking skill: {name}", style="dim")
                 worker = self.run_worker(
                     self._submit_message(prompt),
                     exclusive=True,
@@ -336,32 +493,21 @@ class DeepAgentTUI(App):
                 )
                 self._track_worker(worker)
             else:
-                log.write(Text(f"  Unknown command: /{name}", style="red"))
+                self._write_text(f"  Unknown command: /{name}", style="red")
 
     async def _submit_message(self, text: str) -> None:
-        log = self._log_widget
-        try:
-            streaming = self.query_one("#streaming", Static)
-        except Exception as e:  # noqa: BLE001
-            log.write(Text(f"  Worker setup failed: {e}", style="bold red"))
-            return
-
         if _DEBUG:
-            log.write(Text("  [debug] worker started", style="dim yellow"))
-            log.write(
-                Text(
-                    f"  [debug] thread={self.session.thread_id!r} assistant={self.session.assistant_id!r}",
-                    style="dim yellow",
-                )
+            self._write_text("  [debug] worker started", style="dim yellow")
+            self._write_text(
+                f"  [debug] thread={self.session.thread_id!r} assistant={self.session.assistant_id!r}",
+                style="dim yellow",
             )
 
         if not self.session.thread_id or not self.session.assistant_id:
-            log.write(
-                Text(
-                    "  Not connected (missing thread_id or assistant_id). "
-                    "Try restarting with --tui.",
-                    style="bold red",
-                )
+            self._write_text(
+                "  Not connected (missing thread_id or assistant_id). "
+                "Try restarting with --tui.",
+                style="bold red",
             )
             return
 
@@ -370,8 +516,7 @@ class DeepAgentTUI(App):
 
         state = StreamState()
         self._stream_buffer = ""
-        streaming.update("")
-        streaming.remove_class("-hidden")
+        self._start_response_slot()
 
         event_counts: dict[str, int] = {}
         try:
@@ -379,14 +524,14 @@ class DeepAgentTUI(App):
                 self.session.thread_id, self.session.assistant_id, text
             )
             if _DEBUG:
-                log.write(Text("  [debug] stream object created, iterating…", style="dim yellow"))
-            await self._consume_stream(stream, state, log, streaming, event_counts)
+                self._write_text("  [debug] stream object created, iterating…", style="dim yellow")
+            await self._consume_stream(stream, state, event_counts)
             if _DEBUG or not event_counts:
                 summary = ", ".join(f"{k}={v}" for k, v in event_counts.items()) or "0"
                 style = "dim yellow" if event_counts else "bold red"
-                log.write(Text(f"  [debug] stream ended · events: {summary}", style=style))
+                self._write_text(f"  [debug] stream ended · events: {summary}", style=style)
             self._flush_usage(state)
-            await self._handle_interrupts(log, streaming)
+            await self._handle_interrupts()
 
             try:
                 await upsert_thread(
@@ -398,12 +543,11 @@ class DeepAgentTUI(App):
             except Exception:
                 pass
         except Exception as e:  # noqa: BLE001
-            log.write(Text(f"  Stream error: {e}", style="bold red"))
+            self._write_text(f"  Stream error: {e}", style="bold red")
             if _DEBUG:
-                log.write(Text(traceback.format_exc(), style="red"))
+                self._write_text(traceback.format_exc(), style="red")
         finally:
-            streaming.add_class("-hidden")
-            streaming.update("")
+            self._finalize_slot()
             self._stream_buffer = ""
             self.session.status = "idle"
 
@@ -411,8 +555,6 @@ class DeepAgentTUI(App):
         self,
         stream,
         state: StreamState,
-        log: RichLog,
-        streaming: Static,
         event_counts: dict[str, int] | None = None,
     ) -> None:
         from deepagent_repl.handlers.stream import extract_text_content
@@ -427,17 +569,16 @@ class DeepAgentTUI(App):
             if event_type == "messages/partial":
                 frag = process_messages_event(data, state)
                 if frag:
+                    if self._active_slot is None:
+                        self._start_response_slot()
                     self._stream_buffer += frag
-                    streaming.update(render_markdown(self._stream_buffer))
+                    self._apply_streaming_text(self._stream_buffer)
 
             elif event_type == "updates" and isinstance(data, dict):
-                # Snapshot what we've streamed so far before resetting.
                 accumulated = self._stream_buffer
-                if accumulated.strip():
-                    log.write(render_markdown(accumulated))
-                    log.write(Text(""))
+                # Lock in whatever the streaming slot showed (if any).
+                self._finalize_slot()
                 self._stream_buffer = ""
-                streaming.update("")
 
                 messages = process_updates_event(data, state)
                 for msg in messages:
@@ -447,19 +588,20 @@ class DeepAgentTUI(App):
                     if msg_type == "ai":
                         ai_text = extract_text_content(msg.get("content", ""))
                         if ai_text.strip() and ai_text.strip() != accumulated.strip():
-                            log.write(render_markdown(ai_text))
-                            log.write(Text(""))
+                            self._write_renderable(render_markdown(ai_text))
                         for tc in msg.get("tool_calls", []):
-                            _write_tool_call(log, format_tool_call(tc))
+                            self._write_tool_call(format_tool_call(tc))
                     elif msg_type == "tool":
-                        _write_tool_result(log, format_tool_result(msg))
+                        self._write_tool_result(format_tool_result(msg))
 
-        if self._stream_buffer.strip():
-            log.write(render_markdown(self._stream_buffer))
-            log.write(Text(""))
-            self._stream_buffer = ""
+                # Show Thinking… in a fresh slot in case more streaming follows.
+                self._start_response_slot()
 
-    async def _handle_interrupts(self, log: RichLog, streaming: Static) -> None:
+        # Stream ended — drop the trailing thinking slot if nothing arrived.
+        self._finalize_slot()
+        self._stream_buffer = ""
+
+    async def _handle_interrupts(self) -> None:
         while True:
             try:
                 thread_state = await self.client.get_thread_state(self.session.thread_id)
@@ -473,7 +615,7 @@ class DeepAgentTUI(App):
             interrupt = interrupts[0]
             self.session.status = "interrupted"
 
-            log.write(_build_interrupt_panel(interrupt))
+            self._write_renderable(_build_interrupt_panel(interrupt))
 
             from deepagent_repl.storage.rules import match_rule
 
@@ -481,31 +623,30 @@ class DeepAgentTUI(App):
             auto_action = match_rule(tool_name) if tool_name else None
             if auto_action == "allow":
                 choice = "approve"
-                log.write(Text(f"  Auto-{choice} by rule.", style="dim"))
+                self._write_text(f"  Auto-{choice} by rule.", style="dim")
             elif auto_action == "deny":
                 choice = "reject"
-                log.write(Text(f"  Auto-{choice} by rule.", style="dim"))
+                self._write_text(f"  Auto-{choice} by rule.", style="dim")
             else:
                 choice = await self.push_screen_wait(ApprovalScreen(interrupt))
                 if choice is None:
                     choice = "reject"
 
-            log.write(Text(f"  → {choice}", style="dim"))
+            self._write_text(f"  → {choice}", style="dim")
 
             resume_value = build_resume_value(interrupt, choice, None)
 
             self.session.status = "streaming"
             state = StreamState()
             self._stream_buffer = ""
-            streaming.update("")
-            streaming.remove_class("-hidden")
+            self._start_response_slot()
 
             resume_stream = self.client.resume(
                 self.session.thread_id, self.session.assistant_id, resume_value
             )
-            await self._consume_stream(resume_stream, state, log, streaming)
+            await self._consume_stream(resume_stream, state)
             self._flush_usage(state)
-            streaming.add_class("-hidden")
+            self._finalize_slot()
 
             if choice.lower() in ("reject", "deny", "no"):
                 return
@@ -519,13 +660,6 @@ class DeepAgentTUI(App):
             self.run_worker(self._derive_workspace_root(), exclusive=False)
 
     async def _derive_workspace_root(self) -> None:
-        """After a stream, ask the server what workspace the agent is using.
-
-        Tries, in order:
-          1. skills_metadata paths — split on '/.claude/skills/' to get the root
-          2. common path-like keys in thread state values (working_directory,
-             workspace, project_root, root_dir, cwd, workspace_dir)
-        """
         if not self.session.thread_id:
             return
 
@@ -558,19 +692,130 @@ class DeepAgentTUI(App):
                 return
 
     def action_clear_log(self) -> None:
-        self._log_widget.clear()
+        container = self.query_one("#messages", Container)
+        for child in list(container.children):
+            child.remove()
+
+    # ── Message rendering helpers ───────────────────────────────────────────
 
     @property
-    def _log_widget(self) -> RichLog:
-        return self.query_one("#log", RichLog)
+    def _messages(self) -> Container:
+        return self.query_one("#messages", Container)
+
+    def _scroll_to_input(self) -> None:
+        """Scroll the message area so the most recent content sits flush
+        against the chat bar. Defer to the next refresh so newly-mounted or
+        just-updated widgets have laid out before we measure."""
+        try:
+            scroll = self.query_one("#main", VerticalScroll)
+        except Exception:
+            return
+        scroll.scroll_end(animate=False)
+        self.call_after_refresh(scroll.scroll_end, animate=False)
+
+    def _write_text(self, text: str, style: str = "") -> None:
+        self._write_renderable(Text(text, style=style) if style else Text(text))
+
+    def _write_renderable(self, renderable: RenderableType) -> None:
+        widget = Static(renderable, classes="msg")
+        self._messages.mount(widget)
+        self._scroll_to_input()
+
+    def _stop_thinking_timer(self) -> None:
+        if self._thinking_timer is not None:
+            self._thinking_timer.stop()
+            self._thinking_timer = None
+
+    def _start_response_slot(self) -> None:
+        """Mount a new response widget at the end of #messages and begin the
+        Thinking… animation in it. The same widget is later swapped to the
+        streaming markdown so the layout doesn't bounce."""
+        self._stop_thinking_timer()
+        slot = Static(_thinking_renderable(0), classes="msg")
+        self._messages.mount(slot)
+        self._active_slot = slot
+        self._thinking_frame = 0
+        self._thinking_timer = self.set_interval(0.08, self._animate_thinking)
+        self._scroll_to_input()
+
+    def _animate_thinking(self) -> None:
+        if self._active_slot is None or self._stream_buffer:
+            return
+        self._thinking_frame += 1
+        self._active_slot.update(_thinking_renderable(self._thinking_frame))
+
+    def _apply_streaming_text(self, text: str) -> None:
+        """Replace the active slot's content with rendered markdown."""
+        self._stop_thinking_timer()
+        if self._active_slot is None:
+            return
+        self._active_slot.update(render_markdown(text))
+        self._scroll_to_input()
+
+    def _finalize_slot(self) -> None:
+        """Stop the spinner. If the slot only ever showed Thinking… (no text
+        arrived), remove it so it doesn't leave an empty line behind."""
+        self._stop_thinking_timer()
+        if self._active_slot is not None and not self._stream_buffer.strip():
+            self._active_slot.remove()
+        self._active_slot = None
+        self._scroll_to_input()
+
+    def _write_tool_call(self, tc: FormattedToolCall) -> None:
+        if tc.is_subagent:
+            title = f"subagent: {tc.subagent_name or tc.name}"
+            body = tc.subagent_input or ""
+            style = "magenta"
+        else:
+            title = tc.name
+            body = _format_args(tc.args)
+            style = _theme.ACCENT_COLOR
+        if body:
+            self._write_renderable(
+                Panel(
+                    Text(body, style="dim"),
+                    title=Text(f" {title} ", style=f"bold {style}"),
+                    title_align="left",
+                    border_style=f"dim {style}",
+                    padding=(0, 1),
+                    expand=False,
+                )
+            )
+        else:
+            self._write_text(f"  {title}", style=f"bold {style}")
+
+    def _write_tool_result(self, result: FormattedToolResult) -> None:
+        style = "red" if result.is_error else "green"
+        icon = "x" if result.is_error else "ok"
+        header = Text(f"  [{icon}] {result.name}", style=f"bold {style}")
+        if result.summary:
+            self._write_renderable(
+                Panel(
+                    Text(result.summary, style="dim"),
+                    title=header,
+                    title_align="left",
+                    border_style=f"dim {style}",
+                    padding=(0, 1),
+                    expand=False,
+                )
+            )
+        else:
+            self._write_renderable(header)
+
+    def _flush_capture(self, cap: "_Capture") -> None:
+        raw = cap.buf.getvalue()
+        if not raw:
+            return
+        for line in raw.splitlines():
+            if line:
+                self._write_renderable(Text.from_ansi(line))
+            else:
+                self._write_text("")
 
 
-# Cyan → magenta gradient (Qwen-style). Falls back to grey/black-on-default
-# automatically: terminals without truecolor downgrade hex styles to the
-# nearest 256-color, and Rich's `dim` attribute degrades the result toward
-# greyscale on monochrome terminals.
-_GRADIENT_START = (34, 211, 238)   # cyan-400  #22d3ee
-_GRADIENT_END = (217, 70, 239)     # fuchsia-500 #d946ef
+# Cyan → magenta gradient (Qwen-style).
+_GRADIENT_START = (34, 211, 238)
+_GRADIENT_END = (217, 70, 239)
 
 
 def _collapse_home(path: str) -> str:
@@ -583,8 +828,6 @@ def _collapse_home(path: str) -> str:
 
 
 def _workspace_label(session: Session) -> str | None:
-    """Server-side workspace if known. None if the agent hasn't told us yet
-    (no client cwd fallback — wrong info is worse than no info)."""
     if session.workspace_root:
         return _collapse_home(session.workspace_root)
     return None
@@ -619,49 +862,6 @@ def _interrupt_tool_name(interrupt: InterruptInfo) -> str | None:
             or interrupt.value.get("type")
         )
     return None
-
-
-def _write_tool_call(log: RichLog, tc: FormattedToolCall) -> None:
-    if tc.is_subagent:
-        title = f"subagent: {tc.subagent_name or tc.name}"
-        body = tc.subagent_input or ""
-        style = "magenta"
-    else:
-        title = tc.name
-        body = _format_args(tc.args)
-        style = _theme.ACCENT_COLOR
-    if body:
-        log.write(
-            Panel(
-                Text(body, style="dim"),
-                title=Text(f" {title} ", style=f"bold {style}"),
-                title_align="left",
-                border_style=f"dim {style}",
-                padding=(0, 1),
-                expand=False,
-            )
-        )
-    else:
-        log.write(Text(f"  {title}", style=f"bold {style}"))
-
-
-def _write_tool_result(log: RichLog, result: FormattedToolResult) -> None:
-    style = "red" if result.is_error else "green"
-    icon = "x" if result.is_error else "ok"
-    header = Text(f"  [{icon}] {result.name}", style=f"bold {style}")
-    if result.summary:
-        log.write(
-            Panel(
-                Text(result.summary, style="dim"),
-                title=header,
-                title_align="left",
-                border_style=f"dim {style}",
-                padding=(0, 1),
-                expand=False,
-            )
-        )
-    else:
-        log.write(header)
 
 
 def _build_interrupt_panel(interrupt: InterruptInfo) -> Panel:
@@ -736,17 +936,6 @@ class _Capture:
 
 def _capture_console() -> _Capture:
     return _Capture()
-
-
-def _flush_capture_to_log(log: RichLog, cap: _Capture) -> None:
-    raw = cap.buf.getvalue()
-    if not raw:
-        return
-    for line in raw.splitlines():
-        if line:
-            log.write(Text.from_ansi(line))
-        else:
-            log.write(Text(""))
 
 
 def run_tui() -> None:
