@@ -361,6 +361,7 @@ class DeepAgentTUI(App):
 
     async def on_mount(self) -> None:
         self.session.picker = self._tui_pick
+        self.session.replay = self._replay_thread
         welcome = self.query_one("#welcome", WelcomeBanner)
         welcome.set_connecting(settings.langgraph_url)
 
@@ -823,6 +824,36 @@ class DeepAgentTUI(App):
         container = self.query_one("#messages", Container)
         for child in list(container.children):
             child.remove()
+
+    async def _replay_thread(self, messages: list[dict]) -> None:
+        """Clear the message log and render past messages as static history,
+        so /resume returns to the conversation in place instead of printing a
+        status banner."""
+        from deepagent_repl.handlers.stream import extract_text_content
+
+        self.action_clear_log()
+
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            msg_type = msg.get("type") or msg.get("role", "")
+            content = msg.get("content", "")
+
+            if msg_type in ("user", "human"):
+                text = extract_text_content(content)
+                if text.strip():
+                    widget = Static(_user_message_text(text), classes="msg-user")
+                    self._messages.mount(widget)
+            elif msg_type == "ai":
+                text = extract_text_content(content)
+                if text.strip():
+                    self._write_renderable(render_markdown(text))
+                for tc in msg.get("tool_calls", []) or []:
+                    self._write_tool_call(format_tool_call(tc))
+            elif msg_type == "tool":
+                self._write_tool_result(format_tool_result(msg))
+
+        self._scroll_to_input()
 
     # ── Message rendering helpers ───────────────────────────────────────────
 

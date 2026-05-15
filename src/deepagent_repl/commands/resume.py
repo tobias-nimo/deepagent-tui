@@ -162,22 +162,29 @@ async def _switch_thread(client, session, thread_id: str) -> None:
     session.output_tokens = 0
     session.total_cost = 0.0
 
-    # Try to load conversation summary from server
     try:
         state = await client.get_thread_state(thread_id)
-        messages = state.get("values", {}).get("messages", [])
-        if messages:
-            msg_count = len(messages)
-            last_msg = messages[-1]
-            last_content = last_msg.get("content", "")
-            if isinstance(last_content, list):
-                last_content = " ".join(
-                    c.get("text", "") for c in last_content if isinstance(c, dict)
-                )
-            preview = last_content[:80] + "..." if len(last_content) > 80 else last_content
-            render_info(f"Resumed thread: {thread_id}")
-            render_info(f"  {msg_count} messages — last: {preview}")
-        else:
-            render_info(f"Resumed thread: {thread_id} (empty)")
+        messages = state.get("values", {}).get("messages", []) or []
     except Exception:
+        messages = []
+
+    # TUI: clear the screen and re-render the past conversation in place,
+    # so the user picks up where they left off instead of seeing a status banner.
+    replay = getattr(session, "replay", None)
+    if replay is not None:
+        await replay(messages)
+        return
+
+    if messages:
+        msg_count = len(messages)
+        last_msg = messages[-1]
+        last_content = last_msg.get("content", "")
+        if isinstance(last_content, list):
+            last_content = " ".join(
+                c.get("text", "") for c in last_content if isinstance(c, dict)
+            )
+        preview = last_content[:80] + "..." if len(last_content) > 80 else last_content
         render_info(f"Resumed thread: {thread_id}")
+        render_info(f"  {msg_count} messages — last: {preview}")
+    else:
+        render_info(f"Resumed thread: {thread_id} (empty)")
