@@ -211,6 +211,32 @@ class ChatTextArea(TextArea):
             event.prevent_default()
             self.insert("\n", maintain_selection_offset=False)
             return
+        if key in ("up", "down"):
+            # While the autocomplete menu is showing, leave arrows alone so the
+            # user can keep editing the slash command without scrolling history.
+            try:
+                ac = self.app.query_one("#autocomplete", OptionList)
+                ac_visible = "-hidden" not in ac.classes
+            except Exception:
+                ac_visible = False
+            if not ac_visible:
+                row, _ = self.cursor_location
+                last_row = self.document.line_count - 1
+                at_edge = (key == "up" and row == 0) or (
+                    key == "down" and row == last_row
+                )
+                if at_edge:
+                    event.stop()
+                    event.prevent_default()
+                    try:
+                        scroll = self.app.query_one("#main", VerticalScroll)
+                    except Exception:
+                        return
+                    if key == "up":
+                        scroll.scroll_up(animate=False)
+                    else:
+                        scroll.scroll_down(animate=False)
+                    return
         await super()._on_key(event)
 
     async def _on_paste(self, event: events.Paste) -> None:
@@ -383,6 +409,8 @@ class DeepAgentTUI(App):
         Binding("ctrl+l", "clear_log", "Clear", show=False),
         Binding("escape", "hide_autocomplete", "Hide autocomplete", show=False),
         Binding("tab", "complete_command", "Complete", show=False, priority=True),
+        Binding("pageup", "scroll_history_up", "Scroll up", show=False, priority=True),
+        Binding("pagedown", "scroll_history_down", "Scroll down", show=False, priority=True),
     ]
 
     def __init__(self) -> None:
@@ -933,6 +961,18 @@ class DeepAgentTUI(App):
         container = self.query_one("#messages", Container)
         for child in list(container.children):
             child.remove()
+
+    def action_scroll_history_up(self) -> None:
+        try:
+            self.query_one("#main", VerticalScroll).scroll_page_up(animate=False)
+        except Exception:
+            pass
+
+    def action_scroll_history_down(self) -> None:
+        try:
+            self.query_one("#main", VerticalScroll).scroll_page_down(animate=False)
+        except Exception:
+            pass
 
     async def _replay_thread(self, messages: list[dict]) -> None:
         """Clear the message log and render past messages as static history,
