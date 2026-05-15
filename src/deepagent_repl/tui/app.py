@@ -49,6 +49,21 @@ def _command_color() -> str:
     return _theme.current_theme().command
 
 
+def _user_message_text(text: str) -> Text:
+    """Render a submitted message. If it starts with a slash command, paint
+    the `/name` token in the command accent color so it stands out from the
+    rest of the bold user message."""
+    if text.startswith("/"):
+        head, sep, tail = text.partition(" ")
+        cmd = _command_color()
+        out = Text("❯ ", style="bold")
+        out.append(head, style=f"bold {cmd}")
+        if sep:
+            out.append(sep + tail, style="bold")
+        return out
+    return Text(f"❯ {text}", style="bold")
+
+
 class StatusBar(Static):
     """Single-line bottom status bar that updates from session state."""
 
@@ -417,11 +432,11 @@ class DeepAgentTUI(App):
         message.input.value = ""
         self.action_hide_autocomplete()
 
-        widget = Static(Text(f"❯ {text}", style="bold"), classes="msg-user")
+        from deepagent_repl.commands import is_command
+
+        widget = Static(_user_message_text(text), classes="msg-user")
         self._messages.mount(widget)
         self._scroll_to_input()
-
-        from deepagent_repl.commands import is_command
 
         if is_command(text):
             await self._run_command(text)
@@ -457,12 +472,31 @@ class DeepAgentTUI(App):
 
         parts = text[1:].split(None, 1)
         name = parts[0] if parts else ""
+        args = parts[1] if len(parts) > 1 else ""
 
         # /clear in TUI: clear the message log directly. The registered command
         # writes ANSI clear codes to the rich console, which the TUI captures
         # and discards — so the underlying command is a no-op here.
         if name == "clear":
             self.action_clear_log()
+            return
+
+        # Dynamic (skill) commands: the registered handler streams via the
+        # CLI's rich.live renderer, which the TUI's console capture buffers
+        # until the whole turn finishes — producing a frozen UI and a burst
+        # of "Thinking…" frames at the end. Route through the TUI-native
+        # stream worker instead so output appears progressively.
+        if name in dynamic_commands():
+            prompt = f"Use the {name} skill"
+            if args:
+                prompt += f": {args}"
+            worker = self.run_worker(
+                self._submit_message(prompt),
+                exclusive=True,
+                name="stream",
+                exit_on_error=False,
+            )
+            self._track_worker(worker)
             return
 
         with _capture_console() as cap:
@@ -489,23 +523,7 @@ class DeepAgentTUI(App):
         self._flush_capture(cap)
 
         if not handled:
-            parts = text[1:].split(None, 1)
-            name = parts[0] if parts else text[1:]
-            args = parts[1] if len(parts) > 1 else ""
-            if name in dynamic_commands():
-                prompt = f"Use the {name} skill"
-                if args:
-                    prompt += f": {args}"
-                self._write_text(f"  Invoking skill: {name}", style="dim")
-                worker = self.run_worker(
-                    self._submit_message(prompt),
-                    exclusive=True,
-                    name="stream",
-                    exit_on_error=False,
-                )
-                self._track_worker(worker)
-            else:
-                self._write_text(f"  Unknown command: /{name}", style="red")
+            self._write_text(f"  Unknown command: /{name}", style="red")
 
     async def _submit_message(self, text: str) -> None:
         if _DEBUG:
@@ -657,10 +675,15 @@ class DeepAgentTUI(App):
             self.session.add_usage(state.total_input_tokens, state.total_output_tokens)
         if state.model and not self.session.model:
             self.session.model = state.model
-        if not self.session.workspace_root:
-            self.run_worker(self._derive_workspace_root(), exclusive=False)
+        if (
+            not self.session.workspace_root
+            or not self.session.discovered_skills_from_state
+        ):
+            self.run_worker(self._discover_from_thread_state(), exclusive=False)
 
-    async def _derive_workspace_root(self) -> None:
+    async def _discover_from_thread_state(self) -> None:
+        """Fetch skills_metadata from thread state. Register skills as dynamic
+        slash commands and derive the workspace root from any skill path."""
         if not self.session.thread_id:
             return
 
@@ -668,6 +691,22 @@ class DeepAgentTUI(App):
             skills = await self.client.get_skills_from_state(self.session.thread_id)
         except Exception:
             skills = []
+
+        if skills and not self.session.discovered_skills_from_state:
+            from deepagent_repl.cli import _register_skill_command
+
+            self.session.discovered_skills_from_state = True
+            for sk in skills:
+                name = sk.get("name", "") if isinstance(sk, dict) else ""
+                if not name:
+                    continue
+                desc = sk.get("description", "")
+                path = sk.get("path", "")
+                self.session.discovered_tools[name] = desc
+                _register_skill_command(name, desc, path)
+
+        if self.session.workspace_root:
+            return
 
         for sk in skills:
             path = sk.get("path") if isinstance(sk, dict) else None
