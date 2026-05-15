@@ -809,12 +809,15 @@ class DeepAgentTUI(App):
         items: list[PickerItem],
         heading: str = "Select",
         hint: str | None = None,
+        max_visible: int | None = None,
     ) -> Any:
         """Inline list picker for /resume, /fork, and similar commands.
         Called from a worker (commands run as workers in the TUI), so it
         can use push_screen_wait directly to suspend the worker until the
         user picks or cancels."""
-        return await self.push_screen_wait(PickerScreen(items, heading, hint=hint))
+        return await self.push_screen_wait(
+            PickerScreen(items, heading, hint=hint, max_visible=max_visible)
+        )
 
     def action_clear_log(self) -> None:
         container = self.query_one("#messages", Container)

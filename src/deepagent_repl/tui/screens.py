@@ -143,6 +143,7 @@ class PickerScreen(Screen[Any]):
         heading: str = "Select",
         search_placeholder: str = "Type to search…",
         hint: str | None = None,
+        max_visible: int | None = None,
     ) -> None:
         super().__init__()
         self._items = items
@@ -152,8 +153,9 @@ class PickerScreen(Screen[Any]):
             hint
             or "↑↓ to move  ·  Enter to select  ·  Type to search  ·  Esc to cancel"
         )
+        self._max_visible = max_visible
         self._query: str = ""
-        self._filtered: list[int] = list(range(len(items)))
+        self._filtered: list[int] = self._compute_filtered()
         self._selected: int = 0
 
     def compose(self) -> ComposeResult:
@@ -223,16 +225,25 @@ class PickerScreen(Screen[Any]):
 
     # ── filtering / navigation ─────────────────────────────────────────────
 
-    async def _apply_filter(self) -> None:
+    def _compute_filtered(self) -> list[int]:
+        """Indices of items matching the current query, capped at
+        max_visible (when set). Used to cap both the default view (most
+        recent N) and search results (top N matches)."""
         if not self._query:
-            self._filtered = list(range(len(self._items)))
+            indices = list(range(len(self._items)))
         else:
             q = self._query
-            self._filtered = [
+            indices = [
                 i
                 for i, it in enumerate(self._items)
                 if q in it.title.lower() or q in it.subtitle.lower()
             ]
+        if self._max_visible is not None:
+            indices = indices[: self._max_visible]
+        return indices
+
+    async def _apply_filter(self) -> None:
+        self._filtered = self._compute_filtered()
         self._selected = 0
         await self._rebuild_rows()
         self._refresh_title()

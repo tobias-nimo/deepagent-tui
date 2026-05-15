@@ -50,12 +50,20 @@ def _format_option(t: dict, is_current: bool) -> str:
     return f"{marker}{tid}  {graph:<12}  {msgs:>3} msgs  {last:<30}  {updated}"
 
 
+_TITLE_MAX = 80
+
+
 def _row_title(t: dict) -> str:
-    """Title line for the TUI picker — the last message, falling back to id."""
+    """Title line for the TUI picker — the last message collapsed to a
+    single line and trimmed to TITLE_MAX chars with '...'. Falls back to
+    the thread id when there is no message text."""
     last = (t.get("last_message") or "").strip()
-    if last:
-        return last
-    return t["id"]
+    if not last:
+        return t["id"]
+    line = " ".join(last.split())  # collapse all whitespace (newlines, tabs) to single spaces
+    if len(line) > _TITLE_MAX:
+        line = line[:_TITLE_MAX].rstrip() + "..."
+    return line
 
 
 def _row_subtitle(t: dict, is_current: bool) -> str:
@@ -84,7 +92,9 @@ async def cmd_resume(client, session, args: str) -> None:
         await _resume_by_id(client, session, args.strip())
         return
 
-    threads = await list_threads(limit=50)
+    threads = await list_threads(limit=200)
+    # Skip empty threads — nothing to resume.
+    threads = [t for t in threads if (t.get("message_count") or 0) > 0]
     if not threads:
         render_info("No saved threads to resume.")
         return
@@ -101,7 +111,7 @@ async def cmd_resume(client, session, args: str) -> None:
             )
             for t in threads
         ]
-        chosen_id = await picker(items, "Resume session")
+        chosen_id = await picker(items, "Resume session", max_visible=10)
         if chosen_id is None:
             render_info("Cancelled.")
             return
