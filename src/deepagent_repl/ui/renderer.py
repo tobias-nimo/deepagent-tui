@@ -157,7 +157,9 @@ def render_tool_result(result: FormattedToolResult) -> None:
     """Render a tool result via the shared widget registry."""
     from deepagent_repl.ui.tool_widgets import render_tool_result_widget
 
-    console.print(render_tool_result_widget(result))
+    rendered = render_tool_result_widget(result)
+    if rendered is not None:
+        console.print(rendered)
 
     # Detect and render any image paths in the tool result
     if not result.is_error and result.content:

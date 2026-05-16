@@ -275,49 +275,76 @@ def _call_ls(tc: FormattedToolCall, state: str) -> RenderableType:
     return _header("List", str(path), state=state)
 
 
+_IN_PROGRESS_STATUSES = {"in_progress", "doing", "active", "running"}
+_SKIPPED_STATUSES = {"cancelled", "skipped"}
+
+
+def _classify_todo(todo) -> tuple[str, str]:
+    """Return (normalized_status, content) for a single todo entry."""
+    if isinstance(todo, dict):
+        status = str(todo.get("status") or "").lower()
+        content = (
+            todo.get("content")
+            or todo.get("text")
+            or todo.get("title")
+            or todo.get("task")
+            or ""
+        )
+        return status, str(content)
+    return "", str(todo)
+
+
+def _todos_progress_summary(statuses: list[str]) -> str:
+    """One-line progress hint for the Todos header.
+    Empty list  → ""
+    All pending → "4 todos"
+    All done    → "4/4 done"
+    Mixed       → "2/4" (+ " · 1 in progress" when any are active)
+    """
+    total = len(statuses)
+    if total == 0:
+        return ""
+    done = sum(1 for s in statuses if s == "completed")
+    active = sum(1 for s in statuses if s in _IN_PROGRESS_STATUSES)
+    if done == 0 and active == 0:
+        return f"{total} todo{'s' if total != 1 else ''}"
+    if done == total:
+        return f"{done}/{total} done"
+    summary = f"{done}/{total}"
+    if active:
+        summary += f" · {active} in progress"
+    return summary
+
+
 def _call_write_todos(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     todos = a.get("todos") or a.get("items") or []
     if not isinstance(todos, list):
-        return _header("write_todos", "(invalid)", state=state)
+        return _header("Todos", "(invalid)", state=state)
 
-    count = len(todos)
+    classified = [_classify_todo(t) for t in todos]
     header = _header(
-        "write_todos",
-        f"{count} item{'s' if count != 1 else ''}",
+        "Todos",
+        _todos_progress_summary([s for s, _ in classified]) or None,
         state=state,
     )
-    if not todos:
+    if not classified:
         return header
 
     body = Text()
-    first = True
-    for todo in todos:
-        if not first:
+    for i, (status, content) in enumerate(classified):
+        if i:
             body.append("\n")
-        first = False
-        if isinstance(todo, dict):
-            status = str(todo.get("status") or "").lower()
-            content = (
-                todo.get("content")
-                or todo.get("text")
-                or todo.get("title")
-                or todo.get("task")
-                or ""
-            )
-        else:
-            status = ""
-            content = str(todo)
         if status == "completed":
-            box, style = "✓", "dim green"
-        elif status in ("in_progress", "doing", "active", "running"):
-            box, style = "◐", f"bold {_accent()}"
-        elif status in ("cancelled", "skipped"):
+            box, style = "✓", "dim"
+        elif status in _IN_PROGRESS_STATUSES:
+            box, style = "◐", "bold"
+        elif status in _SKIPPED_STATUSES:
             box, style = "—", "dim strike"
         else:
             box, style = "○", "dim"
         body.append(f"{box} ", style=style)
-        body.append(str(content), style=style)
+        body.append(content, style=style)
     return Group(header, _indent_block(body))
 
 
@@ -343,8 +370,10 @@ def _progress_summary(tc: FormattedToolCall) -> tuple[str, str]:
         return ("List", str(a.get("path") or a.get("directory") or ""))
     if alias == "write_todos":
         items = a.get("todos") or a.get("items") or []
-        n = len(items) if isinstance(items, list) else 0
-        return ("write_todos", f"{n} item{'s' if n != 1 else ''}")
+        if not isinstance(items, list):
+            return ("Todos", "")
+        statuses = [_classify_todo(t)[0] for t in items]
+        return ("Todos", _todos_progress_summary(statuses))
     return (tc.name, _format_args(tc.args, max_total=80))
 
 
@@ -779,6 +808,15 @@ def _result_task(result: FormattedToolResult, call) -> RenderableType | None:
     return None
 
 
+def _result_write_todos(result: FormattedToolResult, call) -> RenderableType | None:
+    """Suppress the `⎿ Updated todo list to [...]` body — the call widget
+    above already shows the post-update list with status glyphs, so the raw
+    return value is pure noise. Surface errors only."""
+    if result.is_error:
+        return _result_inline(result.summary, error=True)
+    return None
+
+
 _RESULT_RENDERERS: dict[
     str,
     Callable[
@@ -793,6 +831,7 @@ _RESULT_RENDERERS: dict[
     "bash": _result_bash,
     "ls": _result_ls,
     "task": _result_task,
+    "write_todos": _result_write_todos,
 }
 
 
