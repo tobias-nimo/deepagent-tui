@@ -424,39 +424,55 @@ def _truncate_body(content: str, max_lines: int = 8, max_chars: int = 600) -> Te
     return body
 
 
+def _corner_inline(text: str) -> Text:
+    """Inline result line prefixed by the `⎿` corner marker (dim)."""
+    out = Text()
+    out.append(_INDENT)
+    out.append("⎿ ", style="dim")
+    out.append(text, style="dim")
+    return out
+
+
+def _match_count_text(n: int) -> str:
+    if n == 0:
+        return "No matches found"
+    if n == 1:
+        return "1 match"
+    return f"{n} matches"
+
+
 def _result_read(result: FormattedToolResult, call) -> RenderableType:
     if result.is_error:
         return _result_inline(result.summary, error=True)
     content = result.content or ""
     n_lines = content.count("\n") + (1 if content else 0)
-    header = _result_header(error=False)
-    header.append(f"{n_lines} line{'s' if n_lines != 1 else ''}", style="dim")
-    return header
+    return _corner_inline(f"{n_lines} line{'s' if n_lines != 1 else ''}")
 
 
 def _result_grep(result: FormattedToolResult, call) -> RenderableType:
     if result.is_error:
         return _result_inline(result.summary, error=True)
-    matches = [ln for ln in (result.content or "").splitlines() if ln.strip()]
-    n = len(matches)
-    header = _result_header(error=False)
-    if n == 0:
-        header.append("no matches", style="dim")
-        return header
-    header.append(f"{n} match{'es' if n != 1 else ''}", style="dim")
-    preview = matches[:4]
-    if not preview:
-        return header
-    body = Text()
-    for i, ln in enumerate(preview):
-        if i:
-            body.append("\n")
-        body.append(_short(ln, 100), style="dim")
-    remaining = n - len(preview)
-    if remaining > 0:
-        body.append("\n")
-        body.append(f"… (+{remaining} more)", style="dim")
-    return Group(header, _indent_block(body, indent=_INDENT * 2))
+    content = (result.content or "").strip()
+    # The grep tool reports an empty hit set with a free-form sentence rather
+    # than empty content, so count those as zero before we split into lines.
+    lower = content.lower()
+    if (
+        not content
+        or lower.startswith("no matches")
+        or lower.startswith("no results")
+    ):
+        n = 0
+    else:
+        n = sum(1 for ln in content.splitlines() if ln.strip())
+    return _corner_inline(_match_count_text(n))
+
+
+def _result_glob(result: FormattedToolResult, call) -> RenderableType:
+    if result.is_error:
+        return _result_inline(result.summary, error=True)
+    # Find returns a Python list literal — parse it instead of counting lines.
+    matches = _parse_listing(result.content or "")
+    return _corner_inline(_match_count_text(len(matches)))
 
 
 def _result_edit(result: FormattedToolResult, call) -> RenderableType:
@@ -602,7 +618,7 @@ _RESULT_RENDERERS: dict[
     "write": _result_write,
     "read": _result_read,
     "grep": _result_grep,
-    "glob": _result_grep,
+    "glob": _result_glob,
     "bash": _result_bash,
     "ls": _result_ls,
 }
