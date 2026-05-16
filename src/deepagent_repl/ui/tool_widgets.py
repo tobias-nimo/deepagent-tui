@@ -475,14 +475,51 @@ def _result_write(result: FormattedToolResult, call) -> RenderableType:
     return header
 
 
+def _corner_block(body: Text) -> Text:
+    """Render `body` under a `⎿` corner marker. First line sits next to the
+    corner; subsequent lines align beneath that first line. Inline styles on
+    `body` are preserved."""
+    out = Text()
+    out.append(_INDENT)
+    out.append("⎿ ", style="dim")
+    align = _INDENT + "  "
+    for i, ln in enumerate(body.split("\n")):
+        if i:
+            out.append("\n")
+            out.append(align)
+        out.append_text(ln)
+    return out
+
+
+def _strip_bash_trailer(content: str) -> str:
+    """Drop the `[Command succeeded/failed with exit code N]` trailer that the
+    bash tool appends to its output. The exit status is already encoded in the
+    result marker, so the line is redundant noise in the trace."""
+    lines = content.rstrip().splitlines()
+    while lines:
+        last = lines[-1].strip()
+        if (
+            last.startswith("[Command succeeded")
+            or last.startswith("[Command failed")
+        ) and last.endswith("]"):
+            lines.pop()
+            continue
+        if not last:
+            lines.pop()
+            continue
+        break
+    return "\n".join(lines)
+
+
 def _result_bash(result: FormattedToolResult, call) -> RenderableType:
     error = result.is_error
-    if not result.content:
+    content = _strip_bash_trailer(result.content or "")
+    if not content:
         header = _result_header(error=error)
         header.append("failed" if error else "done", style="dim")
         return header
-    body = _truncate_body(result.content)
-    return _result_with_body("output", body, error=error)
+    body = _truncate_body(content)
+    return _corner_block(body)
 
 
 def _parse_listing(content: str) -> list[str]:
