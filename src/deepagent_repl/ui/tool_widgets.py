@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 import difflib
+import os
 from typing import Callable
 
 from rich.console import Group, RenderableType
@@ -483,6 +485,66 @@ def _result_bash(result: FormattedToolResult, call) -> RenderableType:
     return _result_with_body("output", body, error=error)
 
 
+def _parse_listing(content: str) -> list[str]:
+    """Best-effort parse of an `ls`-style result. Handles Python/JSON list
+    literals (`['a', 'b']`) as well as plain newline-separated output."""
+    s = (content or "").strip()
+    if not s:
+        return []
+    if s.startswith("[") and s.endswith("]"):
+        try:
+            value = ast.literal_eval(s)
+            if isinstance(value, (list, tuple)):
+                return [str(x) for x in value]
+        except (ValueError, SyntaxError):
+            pass
+    entries: list[str] = []
+    for line in s.splitlines():
+        ln = line.strip()
+        if not ln:
+            continue
+        if ln.startswith("- "):
+            ln = ln[2:]
+        entries.append(ln)
+    return entries
+
+
+def _basename(path: str) -> str:
+    """Filename component, preserving the trailing `/` for directories."""
+    p = path.strip()
+    trailing = "/" if p.endswith("/") else ""
+    name = os.path.basename(p.rstrip("/")) or p
+    return name + trailing
+
+
+def _result_ls(result: FormattedToolResult, call) -> RenderableType:
+    """Compact directory listing: ⎿ first entry, up to 5 entries, then …"""
+    if result.is_error:
+        return _result_inline(result.summary, error=True)
+    names = [_basename(e) for e in _parse_listing(result.content or "")]
+    out = Text()
+    out.append(_INDENT)
+    out.append("⎿ ", style="dim")
+    if not names:
+        out.append("(empty)", style="dim")
+        return out
+
+    max_entries = 5
+    shown = names[:max_entries]
+    align = _INDENT + "  "  # align continuation lines with the first entry
+    for i, entry in enumerate(shown):
+        if i:
+            out.append("\n")
+            out.append(align)
+        out.append(entry, style="dim")
+    if len(names) > max_entries:
+        remaining = len(names) - max_entries
+        out.append("\n")
+        out.append(align)
+        out.append(f"… (+{remaining} more)", style="dim")
+    return out
+
+
 def _result_generic(result: FormattedToolResult, call) -> RenderableType:
     error = result.is_error
     content = result.content or ""
@@ -505,7 +567,7 @@ _RESULT_RENDERERS: dict[
     "grep": _result_grep,
     "glob": _result_grep,
     "bash": _result_bash,
-    "ls": _result_bash,
+    "ls": _result_ls,
 }
 
 
