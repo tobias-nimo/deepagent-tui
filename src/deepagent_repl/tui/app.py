@@ -424,6 +424,14 @@ class DeepAgentTUI(App):
         self._thinking_timer = None
         self._thinking_frame: int = 0
         self._pending_attachments: list[str] = []
+        # ESC-rollback bookkeeping: capture the in-flight turn so ESC during
+        # streaming can drop the user message and restore it to the input bar.
+        self._stream_worker = None
+        self._active_run_id: str | None = None
+        self._turn_start_index: int | None = None
+        self._last_user_text: str = ""
+        self._last_user_attachments: list[str] = []
+        self._cancelling: bool = False
 
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="main"):
@@ -519,6 +527,22 @@ class DeepAgentTUI(App):
         self._scroll_to_input()
 
     def action_hide_autocomplete(self) -> None:
+        # ESC during a model stream interrupts the run, drops the in-flight
+        # user turn, and restores the typed message into the input bar so the
+        # user can edit and resend. Takes precedence over the autocomplete /
+        # attachments behaviors below.
+        if (
+            self.session.status == "streaming"
+            and self._stream_worker is not None
+            and not self._cancelling
+        ):
+            self.run_worker(
+                self._cancel_and_rollback(),
+                exclusive=False,
+                name="cancel-rollback",
+            )
+            return
+
         ac = self.query_one("#autocomplete", OptionList)
         ac_was_visible = "-hidden" not in ac.classes
         ac.add_class("-hidden")
@@ -529,6 +553,82 @@ class DeepAgentTUI(App):
             self._pending_attachments.clear()
             self._refresh_attachments_preview()
         self._scroll_to_input()
+
+    async def _cancel_and_rollback(self) -> None:
+        """Stop the in-flight run, remove its UI traces, and put the user's
+        message back in the input bar for editing."""
+        self._cancelling = True
+        try:
+            run_id = self._active_run_id
+            thread_id = self.session.thread_id
+            worker = self._stream_worker
+            saved_text = self._last_user_text
+            saved_attachments = list(self._last_user_attachments)
+            start_idx = self._turn_start_index
+
+            # Ask the server to roll the run back. Fire-and-forget — we don't
+            # want to block the UI on a network round-trip, and the local
+            # rollback is what the user actually sees.
+            if run_id and thread_id:
+                async def _server_rollback() -> None:
+                    try:
+                        await self.client._client.runs.cancel(
+                            thread_id, run_id, action="rollback", wait=False,
+                        )
+                    except Exception:
+                        pass
+                self.run_worker(
+                    _server_rollback(), exclusive=False, name="server-rollback"
+                )
+
+            # Cancel the local stream worker — raises CancelledError inside
+            # _consume_stream on its next await, which unwinds _submit_message.
+            if worker is not None:
+                try:
+                    worker.cancel()
+                except Exception:
+                    pass
+
+            # Tear down everything mounted during this turn: user bubble, any
+            # tool-call / tool-result panels, partial assistant markdown, the
+            # active thinking slot. Clear _active_slot before removal so the
+            # worker's finally doesn't try to remove an already-detached widget.
+            self._stop_thinking_timer()
+            self._active_slot = None
+            if start_idx is not None:
+                for child in list(self._messages.children[start_idx:]):
+                    try:
+                        child.remove()
+                    except Exception:
+                        pass
+
+            # Drop the user turn from local session history.
+            if (
+                self.session.messages
+                and self.session.messages[-1].get("role") == "user"
+            ):
+                self.session.messages.pop()
+
+            # Restore the input bar (replace whatever the user may have typed
+            # while waiting — matches the explicit "Replace with restored
+            # message" preference).
+            prompt = self.query_one("#prompt", ChatTextArea)
+            prompt.text = saved_text
+            prompt.move_cursor(prompt.document.end)
+            self._pending_attachments = saved_attachments
+            self._refresh_attachments_preview()
+
+            self.session.status = "idle"
+            self._stream_buffer = ""
+            self._active_run_id = None
+            self._stream_worker = None
+            self._turn_start_index = None
+            self._last_user_text = ""
+            self._last_user_attachments = []
+            prompt.focus()
+            self._scroll_to_input()
+        finally:
+            self._cancelling = False
 
     def action_complete_command(self) -> None:
         ac = self.query_one("#autocomplete", OptionList)
@@ -565,7 +665,8 @@ class DeepAgentTUI(App):
     async def on_chat_text_area_submitted(
         self, message: ChatTextArea.Submitted
     ) -> None:
-        text = message.value.strip()
+        raw_value = message.value
+        text = raw_value.strip()
         pending = list(self._pending_attachments)
         if not text and not pending:
             return
@@ -586,6 +687,11 @@ class DeepAgentTUI(App):
             if image_paths:
                 text = cleaned or "Please analyze this image."
 
+        # Mark the start of this turn so ESC-rollback can remove every widget
+        # mounted after this point (user bubble, tool call panels, tool
+        # results, partial assistant markdown, the active thinking slot).
+        if not is_command(text):
+            self._turn_start_index = len(self._messages.children)
         widget = Static(
             _user_message_with_attachments(text, image_paths),
             classes="msg-user",
@@ -616,17 +722,34 @@ class DeepAgentTUI(App):
         else:
             content = text
 
+        # Snapshot the turn so ESC can roll it back. Stash the raw input
+        # (with any newlines the user typed), not the stripped/cleaned
+        # version, so restoring the input bar feels like a true undo.
+        self._last_user_text = raw_value
+        self._last_user_attachments = list(pending)
+        self._active_run_id = None
+
         worker = self.run_worker(
             self._submit_message(content),
             exclusive=True,
             name="stream",
             exit_on_error=False,
         )
+        self._stream_worker = worker
         self._track_worker(worker)
 
     def _track_worker(self, worker) -> None:
         async def _watch() -> None:
-            await worker.wait()
+            # worker.wait() raises WorkerCancelled when the tracked worker was
+            # cancelled (e.g. ESC during streaming). Treat that as expected
+            # rather than letting it tear down the watcher with an unhandled
+            # exception screen.
+            from textual.worker import WorkerCancelled
+
+            try:
+                await worker.wait()
+            except WorkerCancelled:
+                return
             err = getattr(worker, "error", None)
             if err is not None:
                 self._write_text(f"  Worker failed: {err!r}", style="bold red")
@@ -750,13 +873,22 @@ class DeepAgentTUI(App):
             except Exception:
                 pass
         except Exception as e:  # noqa: BLE001
-            self._write_text(f"  Stream error: {e}", style="bold red")
-            if _DEBUG:
-                self._write_text(traceback.format_exc(), style="red")
+            # Swallow errors raised by the ESC-cancel path — the rollback flow
+            # already restored UI state and we don't want a red banner for a
+            # user-initiated cancel.
+            if not self._cancelling:
+                self._write_text(f"  Stream error: {e}", style="bold red")
+                if _DEBUG:
+                    self._write_text(traceback.format_exc(), style="red")
         finally:
             self._finalize_slot()
             self._stream_buffer = ""
             self.session.status = "idle"
+            self._stream_worker = None
+            self._active_run_id = None
+            self._turn_start_index = None
+            self._last_user_text = ""
+            self._last_user_attachments = []
 
     async def _consume_stream(
         self,
@@ -772,6 +904,13 @@ class DeepAgentTUI(App):
 
             if event_counts is not None:
                 event_counts[event_type] = event_counts.get(event_type, 0) + 1
+
+            # The SDK emits a single `metadata` chunk at run start carrying the
+            # run_id. We need it so ESC can ask the server to roll the run back.
+            if event_type == "metadata" and isinstance(data, dict):
+                rid = data.get("run_id")
+                if isinstance(rid, str):
+                    self._active_run_id = rid
 
             if event_type == "messages/partial":
                 frag = process_messages_event(data, state)
