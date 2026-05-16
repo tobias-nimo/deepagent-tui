@@ -40,6 +40,7 @@ class AgentClient:
             assistant_id=assistant_id,
             input=input_data,
             stream_mode=["updates", "messages"],
+            stream_subgraphs=True,
         ):
             yield chunk
 
@@ -169,5 +170,6 @@ class AgentClient:
             input=None,
             command={"resume": resume_value},
             stream_mode=["updates", "messages"],
+            stream_subgraphs=True,
         ):
             yield chunk

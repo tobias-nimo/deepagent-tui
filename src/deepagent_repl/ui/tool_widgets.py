@@ -15,7 +15,6 @@ from deepagent_repl.handlers.tools import FormattedToolCall, FormattedToolResult
 # across the CLI and Textual rendering paths.
 _MARKER = "●"
 _PENDING_MARKER = "○"
-_SUBAGENT_MARKER = "◈"
 _OK_MARKER = "✓"
 _ERR_MARKER = "✗"
 _INDENT = "  "
@@ -261,24 +260,61 @@ def _call_write_todos(tc: FormattedToolCall, state: str) -> RenderableType:
     return Group(header, _indent_block(body))
 
 
-def _call_subagent(tc: FormattedToolCall, state: str) -> RenderableType:
-    name = tc.subagent_name or tc.name or "subagent"
-    input_str = tc.subagent_input or ""
-    # Subagents keep their distinct diamond marker, but the colour reflects
-    # state so the success/error signal is consistent with other tools.
-    if state == "success":
-        marker_style = "#1a7f37"
-    elif state == "error":
-        marker_style = "#9a2a2a"
-    else:
-        marker_style = "magenta"
-    header = Text()
-    header.append(f"{_SUBAGENT_MARKER} ", style=f"bold {marker_style}")
-    header.append(f"subagent: {name}", style="bold white")
-    if input_str:
-        header.append("  ")
-        header.append(_short(input_str, 100), style="dim")
-    return header
+def _progress_summary(tc: FormattedToolCall) -> tuple[str, str]:
+    """One-line (tool_name, short_summary) for an inner subagent tool call.
+    Used to render minimal `⎿ Bash  ls -la` style progress under the parent
+    Subagent widget — no result body, no per-tool formatting."""
+    a = tc.args
+    alias = _tool_alias(tc.name)
+    if alias == "bash":
+        return ("Bash", _short(str(a.get("command") or a.get("cmd") or ""), 80))
+    if alias == "edit":
+        return ("Edit", str(a.get("file_path") or a.get("path") or ""))
+    if alias == "write":
+        return ("Write", str(a.get("file_path") or a.get("path") or ""))
+    if alias == "read":
+        return ("Read", str(a.get("file_path") or a.get("path") or ""))
+    if alias == "grep":
+        return ("Search", _short(str(a.get("pattern") or a.get("query") or ""), 60))
+    if alias == "glob":
+        return ("Find", _short(str(a.get("pattern") or a.get("glob") or ""), 60))
+    if alias == "ls":
+        return ("List", str(a.get("path") or a.get("directory") or ""))
+    if alias == "write_todos":
+        items = a.get("todos") or a.get("items") or []
+        n = len(items) if isinstance(items, list) else 0
+        return ("write_todos", f"{n} item{'s' if n != 1 else ''}")
+    return (tc.name, _format_args(tc.args, max_total=80))
+
+
+def _render_progress_body(progress: list[tuple[str, str]]) -> Text:
+    body = Text()
+    for i, (name, summary) in enumerate(progress):
+        if i:
+            body.append("\n")
+        body.append("⎿ ", style="dim")
+        body.append(name, style="bold dim")
+        if summary:
+            body.append("  ")
+            body.append(summary, style="dim")
+    return body
+
+
+def _call_subagent(
+    tc: FormattedToolCall,
+    state: str,
+    *,
+    progress: list[tuple[str, str]] | None = None,
+) -> RenderableType:
+    subagent_type = str(tc.args.get("subagent_type") or "")
+    header = _header(
+        "Subagent",
+        subagent_type if subagent_type else None,
+        state=state,
+    )
+    if not progress:
+        return header
+    return Group(header, _indent_block(_render_progress_body(progress)))
 
 
 def _call_generic(tc: FormattedToolCall, state: str) -> RenderableType:
@@ -299,15 +335,20 @@ _CALL_RENDERERS: dict[str, Callable[[FormattedToolCall, str], RenderableType]] =
 
 
 def render_tool_call_widget(
-    tc: FormattedToolCall, state: str = "pending"
+    tc: FormattedToolCall,
+    state: str = "pending",
+    *,
+    progress: list[tuple[str, str]] | None = None,
 ) -> RenderableType:
     """Dispatch a tool call to its per-tool widget renderer.
 
     `state` controls the leading marker: "pending" → `○` dim, "success" → `●`
-    green, "error" → `●` red.
+    green, "error" → `●` red. `progress` is only used by the subagent
+    renderer to append `⎿` lines for inner tool calls observed in the
+    subagent's subgraph stream.
     """
     if tc.is_subagent:
-        return _call_subagent(tc, state)
+        return _call_subagent(tc, state, progress=progress)
     renderer = _CALL_RENDERERS.get(_tool_alias(tc.name))
     if renderer is None:
         return _call_generic(tc, state)
@@ -665,8 +706,19 @@ def _result_generic(result: FormattedToolResult, call) -> RenderableType:
     return _corner_block(body)
 
 
+def _result_task(result: FormattedToolResult, call) -> RenderableType | None:
+    """Subagent results are suppressed: the parent agent re-summarises the
+    subagent's output in its own next turn, so re-printing the raw return
+    value is redundant. The accumulated `⎿` progress lines on the call
+    widget already show what the subagent did."""
+    return None
+
+
 _RESULT_RENDERERS: dict[
-    str, Callable[[FormattedToolResult, FormattedToolCall | None], RenderableType]
+    str,
+    Callable[
+        [FormattedToolResult, FormattedToolCall | None], RenderableType | None
+    ],
 ] = {
     "edit": _result_edit,
     "write": _result_write,
@@ -675,14 +727,17 @@ _RESULT_RENDERERS: dict[
     "glob": _result_glob,
     "bash": _result_bash,
     "ls": _result_ls,
+    "task": _result_task,
 }
 
 
 def render_tool_result_widget(
     result: FormattedToolResult,
     call: FormattedToolCall | None = None,
-) -> RenderableType:
-    """Dispatch a tool result to its per-tool widget renderer."""
+) -> RenderableType | None:
+    """Dispatch a tool result to its per-tool widget renderer. Returns `None`
+    when the tool opts out of result rendering (currently only the subagent
+    `task` tool)."""
     name = _tool_alias(call.name if call else result.name)
     renderer = _RESULT_RENDERERS.get(name)
     if renderer is None:

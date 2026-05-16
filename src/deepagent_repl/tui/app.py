@@ -428,6 +428,15 @@ class DeepAgentTUI(App):
         # marker on the call widget can be flipped from ○ pending → ● green/red
         # once the corresponding tool message arrives.
         self._tool_widgets: dict[str, tuple[Static, FormattedToolCall]] = {}
+        # Subagent (task) bookkeeping. `_subagent_progress` holds the running
+        # list of `⎿ tool` lines per task call_id. `_subagent_ns_to_id` maps a
+        # stream-subgraph namespace ("tools:<checkpoint_id>") to the task
+        # call_id whose inner activity it represents — bound lazily the first
+        # time we see events for a new namespace, popping the oldest pending
+        # task call (FIFO matches sequential subagent dispatch).
+        self._subagent_progress: dict[str, list[tuple[str, str]]] = {}
+        self._subagent_ns_to_id: dict[str, str] = {}
+        self._pending_subagent_ids: list[str] = []
         # ESC-rollback bookkeeping: capture the in-flight turn so ESC during
         # streaming can drop the user message and restore it to the input bar.
         self._stream_worker = None
@@ -909,14 +918,25 @@ class DeepAgentTUI(App):
             if event_counts is not None:
                 event_counts[event_type] = event_counts.get(event_type, 0) + 1
 
+            # With stream_subgraphs=True the SDK suffixes events emitted from
+            # inside a subgraph as `"<event>|<namespace>"` (e.g.
+            # `updates|tools:abc123`). The base event name still drives the
+            # handler choice; the namespace tells us which subagent the event
+            # belongs to. An empty namespace means the parent graph.
+            base_event, _, ns = event_type.partition("|")
+
             # The SDK emits a single `metadata` chunk at run start carrying the
             # run_id. We need it so ESC can ask the server to roll the run back.
-            if event_type == "metadata" and isinstance(data, dict):
+            if base_event == "metadata" and isinstance(data, dict):
                 rid = data.get("run_id")
                 if isinstance(rid, str):
                     self._active_run_id = rid
 
-            if event_type == "messages/partial":
+            if base_event == "messages/partial":
+                # Only stream the parent agent's text into the response slot.
+                # Subagent token streams would otherwise overwrite it mid-turn.
+                if ns:
+                    continue
                 frag = process_messages_event(data, state)
                 if frag:
                     if self._active_slot is None:
@@ -924,7 +944,14 @@ class DeepAgentTUI(App):
                     self._stream_buffer += frag
                     self._apply_streaming_text(self._stream_buffer)
 
-            elif event_type == "updates" and isinstance(data, dict):
+            elif base_event == "updates" and isinstance(data, dict):
+                if ns:
+                    # Subagent-internal update: surface inner tool calls as
+                    # progress lines on the parent task widget, ignore tool
+                    # results and any other inner messages.
+                    self._handle_subagent_update(ns, data)
+                    continue
+
                 accumulated = self._stream_buffer
                 # Lock in whatever the streaming slot showed (if any).
                 self._finalize_slot()
@@ -1220,6 +1247,9 @@ class DeepAgentTUI(App):
         self._messages.mount(widget)
         if tc.id:
             self._tool_widgets[tc.id] = (widget, tc)
+            if tc.is_subagent:
+                self._subagent_progress[tc.id] = []
+                self._pending_subagent_ids.append(tc.id)
         self._scroll_to_input()
 
     def _write_tool_result(self, result: FormattedToolResult) -> None:
@@ -1234,14 +1264,75 @@ class DeepAgentTUI(App):
         if entry is not None:
             widget, tc = entry
             state = "error" if result.is_error else "success"
-            call_render = render_tool_call_widget(tc, state=state)
+            progress = self._subagent_progress.pop(tc.id, None) if tc.is_subagent else None
+            if tc.is_subagent:
+                # Drop the namespace binding for this task. If the subagent
+                # never streamed anything (no inner namespace seen), also pull
+                # this id off the pending FIFO so a later subagent doesn't
+                # inherit it.
+                for ns, tid in list(self._subagent_ns_to_id.items()):
+                    if tid == tc.id:
+                        self._subagent_ns_to_id.pop(ns, None)
+                if tc.id in self._pending_subagent_ids:
+                    self._pending_subagent_ids.remove(tc.id)
+            call_render = render_tool_call_widget(tc, state=state, progress=progress)
             # Re-use the call's widget so call + result share the same `.msg`
             # block. Mounting a second widget would insert a margin row, which
             # looks like a stray blank line between the header and its body.
-            widget.update(Group(call_render, result_render))
+            if result_render is None:
+                widget.update(call_render)
+            else:
+                widget.update(Group(call_render, result_render))
             self._scroll_to_input()
-        else:
+        elif result_render is not None:
             self._write_renderable(result_render)
+
+    def _handle_subagent_update(self, namespace: str, data: dict) -> None:
+        """Stream a single `updates|<ns>` chunk from inside a subagent.
+        Extracts inner tool calls and appends them as `⎿` lines to the
+        owning Subagent widget."""
+        from deepagent_repl.ui.tool_widgets import (
+            _progress_summary,
+            render_tool_call_widget,
+        )
+
+        task_id = self._subagent_ns_to_id.get(namespace)
+        if task_id is None:
+            # First event for this namespace — bind to the oldest unbound
+            # subagent call. If we have none (unlikely; means a subagent
+            # streamed before its parent call surfaced), drop the chunk.
+            if not self._pending_subagent_ids:
+                return
+            task_id = self._pending_subagent_ids.pop(0)
+            self._subagent_ns_to_id[namespace] = task_id
+
+        entry = self._tool_widgets.get(task_id)
+        if entry is None:
+            return
+        widget, tc = entry
+
+        # Only inner tool calls become progress lines. Tool results and inner
+        # model text are not surfaced — the goal is a minimal trace of what
+        # the subagent is doing, not a full re-render of its turn.
+        added = False
+        for _node_name, node_output in data.items():
+            if not isinstance(node_output, dict):
+                continue
+            for msg in node_output.get("messages", []) or []:
+                if not isinstance(msg, dict) or msg.get("type") != "ai":
+                    continue
+                for raw_tc in msg.get("tool_calls", []) or []:
+                    inner = format_tool_call(raw_tc)
+                    self._subagent_progress.setdefault(task_id, []).append(
+                        _progress_summary(inner)
+                    )
+                    added = True
+
+        if not added:
+            return
+        progress = self._subagent_progress.get(task_id, [])
+        widget.update(render_tool_call_widget(tc, state="pending", progress=progress))
+        self._scroll_to_input()
 
     def _flush_capture(self, cap: "_Capture") -> None:
         raw = cap.buf.getvalue()
