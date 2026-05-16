@@ -654,16 +654,15 @@ def _result_ls(result: FormattedToolResult, call) -> RenderableType:
 
 
 def _result_generic(result: FormattedToolResult, call) -> RenderableType:
-    error = result.is_error
+    # Use the corner marker for both success and error — the call widget's
+    # green/red `●` already conveys outcome, so a ✓/✗ here would be redundant.
     content = result.content or ""
     if not content:
-        header = _result_header(error=error)
-        header.append("failed" if error else "done", style="dim")
-        return header
+        return _corner_inline("failed" if result.is_error else "done")
     if "\n" not in content and len(content) <= 100:
-        return _result_inline(content, error=error)
-    body = _truncate_body(content)
-    return _result_with_body("output", body, error=error)
+        return _corner_inline(content)
+    body = _truncate_body(content, max_lines=_DIFF_MAX_LINES)
+    return _corner_block(body)
 
 
 _RESULT_RENDERERS: dict[
