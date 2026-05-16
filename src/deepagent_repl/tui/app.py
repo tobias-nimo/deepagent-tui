@@ -1039,8 +1039,12 @@ class DeepAgentTUI(App):
             self._flush_usage(state)
             self._finalize_slot()
 
-            if choice.lower() in ("reject", "deny", "no"):
-                return
+            # NB: don't return early on reject. The agent often reacts to a
+            # rejection by trying a different approach (another tool call),
+            # which surfaces as a fresh interrupt during the resume stream —
+            # bailing here would leave that next call paused on the server
+            # with no UI to approve it, ending the turn prematurely. Let the
+            # loop keep polling until thread state has no pending interrupts.
 
     def _flush_usage(self, state: StreamState) -> None:
         if state.total_input_tokens or state.total_output_tokens:
