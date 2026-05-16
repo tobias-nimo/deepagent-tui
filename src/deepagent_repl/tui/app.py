@@ -1209,45 +1209,14 @@ class DeepAgentTUI(App):
         self._scroll_to_input()
 
     def _write_tool_call(self, tc: FormattedToolCall) -> None:
-        if tc.is_subagent:
-            title = f"subagent: {tc.subagent_name or tc.name}"
-            body = tc.subagent_input or ""
-            style = "magenta"
-        else:
-            title = tc.name
-            body = _format_args(tc.args)
-            style = _theme.ACCENT_COLOR
-        if body:
-            self._write_renderable(
-                Panel(
-                    Text(body, style="dim"),
-                    title=Text(f" {title} ", style=f"bold {style}"),
-                    title_align="left",
-                    border_style=f"dim {style}",
-                    padding=(0, 1),
-                    expand=False,
-                )
-            )
-        else:
-            self._write_text(f"  {title}", style=f"bold {style}")
+        from deepagent_repl.ui.tool_widgets import render_tool_call_widget
+
+        self._write_renderable(render_tool_call_widget(tc))
 
     def _write_tool_result(self, result: FormattedToolResult) -> None:
-        style = "red" if result.is_error else "green"
-        icon = "x" if result.is_error else "ok"
-        header = Text(f"  [{icon}] {result.name}", style=f"bold {style}")
-        if result.summary:
-            self._write_renderable(
-                Panel(
-                    Text(result.summary, style="dim"),
-                    title=header,
-                    title_align="left",
-                    border_style=f"dim {style}",
-                    padding=(0, 1),
-                    expand=False,
-                )
-            )
-        else:
-            self._write_renderable(header)
+        from deepagent_repl.ui.tool_widgets import render_tool_result_widget
+
+        self._write_renderable(render_tool_result_widget(result))
 
     def _flush_capture(self, cap: "_Capture") -> None:
         raw = cap.buf.getvalue()
@@ -1315,24 +1284,6 @@ def _build_interrupt_panel(interrupt: InterruptInfo) -> Panel:
         padding=(0, 1),
         expand=False,
     )
-
-
-def _format_args(args: dict, max_total: int = 120) -> str:
-    if not args:
-        return ""
-    parts: list[str] = []
-    total = 0
-    for key, val in args.items():
-        val_str = str(val).replace("\n", " ").strip()
-        if len(val_str) > 60:
-            val_str = val_str[:57] + "..."
-        part = f"{key}={val_str}"
-        total += len(part)
-        if total > max_total and parts:
-            parts.append("...")
-            break
-        parts.append(part)
-    return ", ".join(parts)
 
 
 # ── Console capture helpers ────────────────────────────────────────────────

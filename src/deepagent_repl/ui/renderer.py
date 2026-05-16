@@ -142,30 +142,10 @@ def render_assistant_text(text: str) -> None:
 
 
 def render_tool_call(tc: FormattedToolCall) -> None:
-    """Render a tool call with a styled panel."""
-    if tc.is_subagent:
-        title = f"subagent: {tc.subagent_name or tc.name}"
-        body = tc.subagent_input or ""
-        style = "magenta"
-        border_style = "dim magenta"
-    else:
-        title = tc.name
-        body = _format_args(tc.args)
-        style = _theme.ACCENT_COLOR
-        border_style = f"dim {_theme.ACCENT_COLOR}"
+    """Render a tool call via the shared widget registry."""
+    from deepagent_repl.ui.tool_widgets import render_tool_call_widget
 
-    if body:
-        panel = Panel(
-            Text(body, style="dim"),
-            title=Text(f" {title} ", style=f"bold {style}"),
-            title_align="left",
-            border_style=border_style,
-            padding=(0, 1),
-            expand=False,
-        )
-        console.print(panel)
-    else:
-        console.print(Text(f"  {title}", style=f"bold {style}"))
+    console.print(render_tool_call_widget(tc))
 
 
 def render_tool_running(name: str) -> None:
@@ -174,31 +154,10 @@ def render_tool_running(name: str) -> None:
 
 
 def render_tool_result(result: FormattedToolResult) -> None:
-    """Render a tool result with color-coded status."""
-    if result.is_error:
-        style = "red"
-        icon = "x"
-        border_style = "dim red"
-    else:
-        style = "green"
-        icon = "ok"
-        border_style = "dim green"
+    """Render a tool result via the shared widget registry."""
+    from deepagent_repl.ui.tool_widgets import render_tool_result_widget
 
-    header = Text(f"  [{icon}] {result.name}", style=f"bold {style}")
-
-    summary = result.summary
-    if summary:
-        panel = Panel(
-            Text(summary, style="dim"),
-            title=header,
-            title_align="left",
-            border_style=border_style,
-            padding=(0, 1),
-            expand=False,
-        )
-        console.print(panel)
-    else:
-        console.print(header)
+    console.print(render_tool_result_widget(result))
 
     # Detect and render any image paths in the tool result
     if not result.is_error and result.content:
@@ -360,22 +319,3 @@ def render_shortcut_hint() -> None:
 def render_info(message: str) -> None:
     """Render an informational message."""
     console.print(Text(message, style="dim"))
-
-
-def _format_args(args: dict, max_total: int = 120) -> str:
-    """Format tool arguments as a compact key=value string."""
-    if not args:
-        return ""
-    parts = []
-    total = 0
-    for key, val in args.items():
-        val_str = str(val).replace("\n", " ").strip()
-        if len(val_str) > 60:
-            val_str = val_str[:57] + "..."
-        part = f"{key}={val_str}"
-        total += len(part)
-        if total > max_total and parts:
-            parts.append("...")
-            break
-        parts.append(part)
-    return ", ".join(parts)
