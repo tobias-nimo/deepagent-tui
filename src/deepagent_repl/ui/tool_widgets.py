@@ -18,6 +18,7 @@ _PENDING_MARKER = "○"
 _OK_MARKER = "✓"
 _ERR_MARKER = "✗"
 _INDENT = "  "
+_SUBAGENT_PROGRESS_MAX = 3
 
 
 def _state_marker(state: str) -> tuple[str, str]:
@@ -288,8 +289,12 @@ def _progress_summary(tc: FormattedToolCall) -> tuple[str, str]:
 
 
 def _render_progress_body(progress: list[tuple[str, str]]) -> Text:
+    # Rolling window: only the most recent N entries are shown. When a new
+    # inner tool fires the oldest visible line drops off the top so the widget
+    # height stays bounded for long-running subagents.
+    shown = progress[-_SUBAGENT_PROGRESS_MAX:]
     body = Text()
-    for i, (name, summary) in enumerate(progress):
+    for i, (name, summary) in enumerate(shown):
         if i:
             body.append("\n")
         body.append("⎿ ", style="dim")
