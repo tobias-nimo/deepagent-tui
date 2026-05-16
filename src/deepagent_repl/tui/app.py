@@ -1230,11 +1230,18 @@ class DeepAgentTUI(App):
 
         entry = self._tool_widgets.pop(result.tool_call_id, None)
         call = entry[1] if entry else None
+        result_render = render_tool_result_widget(result, call=call)
         if entry is not None:
             widget, tc = entry
             state = "error" if result.is_error else "success"
-            widget.update(render_tool_call_widget(tc, state=state))
-        self._write_renderable(render_tool_result_widget(result, call=call))
+            call_render = render_tool_call_widget(tc, state=state)
+            # Re-use the call's widget so call + result share the same `.msg`
+            # block. Mounting a second widget would insert a margin row, which
+            # looks like a stray blank line between the header and its body.
+            widget.update(Group(call_render, result_render))
+            self._scroll_to_input()
+        else:
+            self._write_renderable(result_render)
 
     def _flush_capture(self, cap: "_Capture") -> None:
         raw = cap.buf.getvalue()
