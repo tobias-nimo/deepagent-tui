@@ -8,7 +8,6 @@ from typing import Any
 
 from rich.console import Console, Group
 from rich.console import RenderableType
-from rich.panel import Panel
 from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
@@ -40,7 +39,8 @@ from deepagent_repl.handlers.tools import (
 )
 from deepagent_repl.session import Session
 from deepagent_repl.storage.db import upsert_thread
-from deepagent_repl.tui.screens import ApprovalScreen, PickerItem, PickerScreen
+from deepagent_repl.tui.inline_approval import InlineApproval
+from deepagent_repl.tui.screens import PickerItem, PickerScreen
 from deepagent_repl.ui.markdown import render_markdown
 
 _DEBUG = os.environ.get("DEEPAGENT_DEBUG") == "1"
@@ -402,6 +402,12 @@ class DeepAgentTUI(App):
         background: $background;
         color: $text-muted;
     }
+
+    /* Hide chat input + rules while an inline approval is waiting so the
+       hint line ("Esc to cancel · …") becomes the last visible row, matching
+       Claude Code's bottom-of-transcript prompt. The class is toggled on
+       each widget directly in `_set_approval_active`. */
+    .-approval-hidden { display: none; }
     """
 
     BINDINGS = [
@@ -540,6 +546,17 @@ class DeepAgentTUI(App):
         self._scroll_to_input()
 
     def action_hide_autocomplete(self) -> None:
+        # While an inline approval is up, Esc cancels the approval (the
+        # widget owns the key — but App `priority=True` bindings fire first,
+        # so we have to forward here).
+        if self.screen.has_class("-approval-active"):
+            try:
+                approval = self.query_one(InlineApproval)
+                if not approval._future.done():
+                    approval._future.set_result(None)
+            except Exception:
+                pass
+            return
         # ESC during a model stream interrupts the run, drops the in-flight
         # user turn, and restores the typed message into the input bar so the
         # user can edit and resend. Takes precedence over the autocomplete /
@@ -644,6 +661,15 @@ class DeepAgentTUI(App):
             self._cancelling = False
 
     def action_complete_command(self) -> None:
+        # While an inline approval is up, Tab navigates the option list
+        # rather than completing a slash-command.
+        if self.screen.has_class("-approval-active"):
+            try:
+                approval = self.query_one(InlineApproval)
+                approval._move(+1)
+            except Exception:
+                pass
+            return
         ac = self.query_one("#autocomplete", OptionList)
         if "-hidden" in ac.classes:
             return
@@ -992,13 +1018,12 @@ class DeepAgentTUI(App):
             interrupt = interrupts[0]
             self.session.status = "interrupted"
 
-            self._write_renderable(_build_interrupt_panel(interrupt))
-
-            choice = await self.push_screen_wait(ApprovalScreen(interrupt))
+            # No separate preview: the pending tool widget already shows the
+            # diff/args for the in-flight call. Just attach the inline
+            # approval below it.
+            choice = await self._inline_approve(interrupt)
             if choice is None:
                 choice = "reject"
-
-            self._write_text(f"  → {choice}", style="dim")
 
             resume_value = build_resume_value(interrupt, choice, None)
 
@@ -1200,6 +1225,62 @@ class DeepAgentTUI(App):
         self._messages.mount(widget)
         self._scroll_to_input()
 
+    async def _inline_approve(self, interrupt: InterruptInfo) -> str | None:
+        """Mount an InlineApproval at the bottom of the transcript, hand it
+        focus, and await the user's choice. The chat bar/rules are hidden by
+        toggling `.-approval-hidden` on each widget so the hint line is the
+        last visible row, then restored afterwards."""
+        import asyncio
+
+        fut: asyncio.Future[str | None] = asyncio.get_event_loop().create_future()
+        widget = InlineApproval(interrupt, fut, classes="msg")
+        self._messages.mount(widget)
+        self._set_approval_active(True)
+        # Hiding the chat textarea drops focus; re-aim it at the approval
+        # after the next refresh so digits/arrows reliably reach it.
+        self.call_after_refresh(widget.focus)
+        self._scroll_to_input()
+        try:
+            choice = await fut
+        finally:
+            self._set_approval_active(False)
+            # Remove the approval widget entirely — once the user has chosen,
+            # the pending tool widget (with its diff) is the only thing that
+            # should remain, and it will flip to its success state when the
+            # tool result arrives.
+            try:
+                await widget.remove()
+            except Exception:
+                pass
+            try:
+                self.query_one("#prompt", ChatTextArea).focus()
+            except Exception:
+                pass
+            self._scroll_to_input()
+        return choice
+
+    def _set_approval_active(self, active: bool) -> None:
+        """Show/hide the chat bar + adjacent rows while an inline approval
+        is waiting. Each widget gets `.-approval-hidden`, which the CSS maps
+        to `display: none`."""
+        for sel in ("#chat-bar", "#chat-rule-top", "#chat-rule-bottom",
+                    "#autocomplete", "#attachments"):
+            try:
+                w = self.query_one(sel)
+            except Exception:
+                continue
+            if active:
+                w.add_class("-approval-hidden")
+            else:
+                w.remove_class("-approval-hidden")
+        # Keep a marker on the screen so the priority Esc/Tab bindings can
+        # forward to the approval widget instead of running their normal
+        # actions (priority bindings fire before widget on_key).
+        if active:
+            self.screen.add_class("-approval-active")
+        else:
+            self.screen.remove_class("-approval-active")
+
     def _stop_thinking_timer(self) -> None:
         if self._thinking_timer is not None:
             self._thinking_timer.stop()
@@ -1243,6 +1324,18 @@ class DeepAgentTUI(App):
     def _write_tool_call(self, tc: FormattedToolCall) -> None:
         from deepagent_repl.ui.tool_widgets import render_tool_call_widget
 
+        # Resume streams (after HITL approval) re-emit the AI message
+        # including its tool_calls, so the same tc.id can arrive twice. If we
+        # already have a widget for this id, refresh it in place instead of
+        # mounting a duplicate — otherwise the first widget gets orphaned
+        # (un-tracked) and lingers above the eventual result widget.
+        if tc.id and tc.id in self._tool_widgets:
+            existing, _ = self._tool_widgets[tc.id]
+            existing.update(render_tool_call_widget(tc, state="pending"))
+            self._tool_widgets[tc.id] = (existing, tc)
+            self._scroll_to_input()
+            return
+
         widget = Static(render_tool_call_widget(tc, state="pending"), classes="msg")
         self._messages.mount(widget)
         if tc.id:
@@ -1254,6 +1347,7 @@ class DeepAgentTUI(App):
 
     def _write_tool_result(self, result: FormattedToolResult) -> None:
         from deepagent_repl.ui.tool_widgets import (
+            is_rejected_result,
             render_tool_call_widget,
             render_tool_result_widget,
         )
@@ -1263,7 +1357,10 @@ class DeepAgentTUI(App):
         result_render = render_tool_result_widget(result, call=call)
         if entry is not None:
             widget, tc = entry
-            state = "error" if result.is_error else "success"
+            if is_rejected_result(result):
+                state = "rejected"
+            else:
+                state = "error" if result.is_error else "success"
             progress = self._subagent_progress.pop(tc.id, None) if tc.is_subagent else None
             if tc.is_subagent:
                 # Drop the namespace binding for this task. If the subagent
@@ -1376,30 +1473,6 @@ def _gradient_line(line: str, width: int) -> Text:
         b = int(sb + (eb - sb) * t)
         out.append(ch, style=f"bold #{r:02x}{g:02x}{b:02x}")
     return out
-
-
-def _build_interrupt_panel(interrupt: InterruptInfo) -> Panel:
-    items: list[Text] = [Text(interrupt.description or "Action required", style="bold")]
-    args_dict: dict = {}
-    if isinstance(interrupt.value, dict):
-        for ar in interrupt.value.get("action_requests", []):
-            if isinstance(ar.get("args"), dict):
-                args_dict.update(ar["args"])
-        if not args_dict and isinstance(interrupt.value.get("args"), dict):
-            args_dict = interrupt.value["args"]
-    for key, val in args_dict.items():
-        val_str = str(val).replace("\n", " ")
-        if len(val_str) > 60:
-            val_str = val_str[:57] + "..."
-        items.append(Text(f"+ {key}  {val_str}", style="dim"))
-    return Panel(
-        Group(*items),
-        title=Text(" Interrupt ", style="bold yellow"),
-        title_align="left",
-        border_style="yellow",
-        padding=(0, 1),
-        expand=False,
-    )
 
 
 # ── Console capture helpers ────────────────────────────────────────────────

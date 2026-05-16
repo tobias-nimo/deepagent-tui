@@ -27,7 +27,22 @@ def _state_marker(state: str) -> tuple[str, str]:
         return _MARKER, "#1a7f37"
     if state == "error":
         return _MARKER, "#9a2a2a"
+    if state == "rejected":
+        # User said no to a HITL prompt — the tool didn't actually error, so
+        # we mute the marker rather than painting it red.
+        return _MARKER, "#a16207"
     return _PENDING_MARKER, "dim"
+
+
+# Marker prefix the langchain HumanInTheLoopMiddleware writes into a rejected
+# tool message's content (see langchain/agents/middleware/human_in_the_loop.py:
+# `User rejected the tool call for ...`). We sniff this so the result line
+# renders with `⎿ rejected` instead of `✗ <message>`.
+_HITL_REJECT_PREFIX = "User rejected the tool call"
+
+
+def is_rejected_result(result: FormattedToolResult) -> bool:
+    return bool(result.is_error and (result.content or "").startswith(_HITL_REJECT_PREFIX))
 
 def _accent() -> str:
     return _theme.ACCENT_COLOR
@@ -132,13 +147,58 @@ def _call_edit(tc: FormattedToolCall, state: str) -> RenderableType:
         if summary.plain:
             summary.append("  ", style="dim")
         summary.append("(replace_all)", style="dim yellow")
-    return _header("Edit", summary if summary.plain else None, state=state)
+    header = _header("Edit", summary if summary.plain else None, state=state)
+    # Pending: render the same diff body the result widget would show so the
+    # user can review the change before approving. Once the tool returns, the
+    # call widget shrinks back to just the header and `_result_edit` takes
+    # over the diff so it doesn't render twice.
+    if state == "pending":
+        old_string = str(a.get("old_string", ""))
+        new_string = str(a.get("new_string", ""))
+        diff_lines = _build_diff_lines(old_string, new_string)
+        if diff_lines:
+            added = sum(1 for k, _ in diff_lines if k == "+")
+            removed = sum(1 for k, _ in diff_lines if k == "-")
+            return Group(
+                header,
+                _corner_block_with_summary(
+                    _added_removed_summary(added, removed),
+                    _render_diff_body(diff_lines),
+                ),
+            )
+    return header
 
 
 def _call_write(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     file_path = a.get("file_path") or a.get("path") or ""
-    return _header("Write", file_path if file_path else None, state=state)
+    header = _header("Write", file_path if file_path else None, state=state)
+    if state == "pending":
+        content = str(a.get("content") or a.get("file_text") or "")
+        if content:
+            lines = content.splitlines() or [""]
+            n = len(lines)
+            shown = lines[:_DIFF_MAX_LINES]
+            body = Text()
+            for i, line in enumerate(shown):
+                if i:
+                    body.append("\n")
+                body.append("+ ", style=f"bold {_DIFF_FG_ADD} on {_DIFF_BG_ADD}")
+                body.append(line, style=f"on {_DIFF_BG_ADD}")
+            extra = n - len(shown)
+            if extra > 0:
+                body.append("\n")
+                body.append(
+                    f"… (+{extra} more line{'s' if extra != 1 else ''})", style="dim"
+                )
+            return Group(
+                header,
+                _corner_block_with_summary(
+                    f"Added {n} line{'s' if n != 1 else ''}",
+                    body,
+                ),
+            )
+    return header
 
 
 def _call_read(tc: FormattedToolCall, state: str) -> RenderableType:
@@ -743,6 +803,11 @@ def render_tool_result_widget(
     """Dispatch a tool result to its per-tool widget renderer. Returns `None`
     when the tool opts out of result rendering (currently only the subagent
     `task` tool)."""
+    # HITL rejections come back as ToolMessage(status="error", content="User
+    # rejected ..."). Treat them as a neutral outcome (`⎿ rejected`) rather
+    # than letting per-tool renderers paint a red `✗` error line.
+    if is_rejected_result(result):
+        return _corner_inline("Rejected by user")
     name = _tool_alias(call.name if call else result.name)
     renderer = _RESULT_RENDERERS.get(name)
     if renderer is None:
