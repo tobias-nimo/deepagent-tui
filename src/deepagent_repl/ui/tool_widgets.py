@@ -12,10 +12,20 @@ from deepagent_repl.handlers.tools import FormattedToolCall, FormattedToolResult
 # Trace markers. Plain unicode glyphs (not emoji) so width stays predictable
 # across the CLI and Textual rendering paths.
 _MARKER = "●"
+_PENDING_MARKER = "○"
 _SUBAGENT_MARKER = "◈"
 _OK_MARKER = "✓"
 _ERR_MARKER = "✗"
 _INDENT = "  "
+
+
+def _state_marker(state: str) -> tuple[str, str]:
+    """Map a call state to (glyph, rich style) for the header marker."""
+    if state == "success":
+        return _MARKER, "#1a7f37"
+    if state == "error":
+        return _MARKER, "#9a2a2a"
+    return _PENDING_MARKER, "dim"
 
 # Cap on inline-rendered Write content; longer files get a "+N more lines"
 # trailer so the trace doesn't explode.
@@ -49,13 +59,18 @@ def _header(
     tool: str,
     summary: Text | str | None = None,
     *,
-    marker: str = _MARKER,
+    state: str = "pending",
+    marker: str | None = None,
     marker_style: str | None = None,
 ) -> Text:
-    style = marker_style or _accent()
+    glyph, style = _state_marker(state)
+    if marker is not None:
+        glyph = marker
+    if marker_style is not None:
+        style = marker_style
     out = Text()
-    out.append(f"{marker} ", style=f"bold {style}")
-    out.append(tool, style=f"bold {style}")
+    out.append(f"{glyph} ", style=f"bold {style}")
+    out.append(tool, style="bold white")
     if summary is not None:
         out.append("  ")
         if isinstance(summary, str):
@@ -132,7 +147,7 @@ def _format_args(args: dict, max_total: int = 120) -> str:
 # ── Per-tool call renderers ───────────────────────────────────────────────
 
 
-def _call_edit(tc: FormattedToolCall) -> RenderableType:
+def _call_edit(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     file_path = a.get("file_path") or a.get("path") or ""
     old_string = str(a.get("old_string", ""))
@@ -147,19 +162,19 @@ def _call_edit(tc: FormattedToolCall) -> RenderableType:
             summary.append("  ", style="dim")
         summary.append("(replace_all)", style="dim yellow")
 
-    header = _header("Edit", summary if summary.plain else None)
+    header = _header("Edit", summary if summary.plain else None, state=state)
     diff = _build_diff(old_string, new_string)
     if diff is None:
         return header
     return Group(header, _indent_block(diff))
 
 
-def _call_write(tc: FormattedToolCall) -> RenderableType:
+def _call_write(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     file_path = a.get("file_path") or a.get("path") or ""
     content = str(a.get("content") or a.get("file_text") or "")
 
-    header = _header("Write", file_path if file_path else None)
+    header = _header("Write", file_path if file_path else None, state=state)
     if not content:
         return header
 
@@ -177,7 +192,7 @@ def _call_write(tc: FormattedToolCall) -> RenderableType:
     return Group(header, _indent_block(body))
 
 
-def _call_read(tc: FormattedToolCall) -> RenderableType:
+def _call_read(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     file_path = a.get("file_path") or a.get("path") or ""
     offset = a.get("offset")
@@ -194,10 +209,10 @@ def _call_read(tc: FormattedToolCall) -> RenderableType:
         if summary.plain:
             summary.append("  ", style="dim")
         summary.append("(" + ", ".join(bits) + ")", style="dim")
-    return _header("Read", summary if summary.plain else None)
+    return _header("Read", summary if summary.plain else None, state=state)
 
 
-def _call_grep(tc: FormattedToolCall) -> RenderableType:
+def _call_grep(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     pattern = a.get("pattern") or a.get("regex") or a.get("query") or ""
     path = a.get("path") or a.get("directory") or ""
@@ -214,10 +229,10 @@ def _call_grep(tc: FormattedToolCall) -> RenderableType:
         summary.append("  (", style="dim")
         summary.append(str(glob), style="dim")
         summary.append(")", style="dim")
-    return _header("Grep", summary if summary.plain else None)
+    return _header("Grep", summary if summary.plain else None, state=state)
 
 
-def _call_glob(tc: FormattedToolCall) -> RenderableType:
+def _call_glob(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     pattern = a.get("pattern") or a.get("glob") or ""
     path = a.get("path") or a.get("directory") or ""
@@ -228,10 +243,10 @@ def _call_glob(tc: FormattedToolCall) -> RenderableType:
         if summary.plain:
             summary.append("  in ", style="dim")
         summary.append(str(path), style="dim")
-    return _header("Glob", summary if summary.plain else None)
+    return _header("Glob", summary if summary.plain else None, state=state)
 
 
-def _call_bash(tc: FormattedToolCall) -> RenderableType:
+def _call_bash(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     command = str(a.get("command") or a.get("cmd") or a.get("shell") or "")
     description = str(a.get("description") or "")
@@ -242,25 +257,26 @@ def _call_bash(tc: FormattedToolCall) -> RenderableType:
         if summary.plain:
             summary.append("  · ", style="dim")
         summary.append(description, style="dim")
-    return _header("Bash", summary if summary.plain else None)
+    return _header("Bash", summary if summary.plain else None, state=state)
 
 
-def _call_ls(tc: FormattedToolCall) -> RenderableType:
+def _call_ls(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     path = a.get("path") or a.get("directory") or "."
-    return _header("ls", str(path))
+    return _header("ls", str(path), state=state)
 
 
-def _call_write_todos(tc: FormattedToolCall) -> RenderableType:
+def _call_write_todos(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     todos = a.get("todos") or a.get("items") or []
     if not isinstance(todos, list):
-        return _header("write_todos", "(invalid)")
+        return _header("write_todos", "(invalid)", state=state)
 
     count = len(todos)
     header = _header(
         "write_todos",
         f"{count} item{'s' if count != 1 else ''}",
+        state=state,
     )
     if not todos:
         return header
@@ -296,24 +312,32 @@ def _call_write_todos(tc: FormattedToolCall) -> RenderableType:
     return Group(header, _indent_block(body))
 
 
-def _call_subagent(tc: FormattedToolCall) -> RenderableType:
+def _call_subagent(tc: FormattedToolCall, state: str) -> RenderableType:
     name = tc.subagent_name or tc.name or "subagent"
     input_str = tc.subagent_input or ""
+    # Subagents keep their distinct diamond marker, but the colour reflects
+    # state so the success/error signal is consistent with other tools.
+    if state == "success":
+        marker_style = "#1a7f37"
+    elif state == "error":
+        marker_style = "#9a2a2a"
+    else:
+        marker_style = "magenta"
     header = Text()
-    header.append(f"{_SUBAGENT_MARKER} ", style="bold magenta")
-    header.append(f"subagent: {name}", style="bold magenta")
+    header.append(f"{_SUBAGENT_MARKER} ", style=f"bold {marker_style}")
+    header.append(f"subagent: {name}", style="bold white")
     if input_str:
         header.append("  ")
         header.append(_short(input_str, 100), style="dim")
     return header
 
 
-def _call_generic(tc: FormattedToolCall) -> RenderableType:
+def _call_generic(tc: FormattedToolCall, state: str) -> RenderableType:
     args_text = _format_args(tc.args)
-    return _header(tc.name, args_text if args_text else None)
+    return _header(tc.name, args_text if args_text else None, state=state)
 
 
-_CALL_RENDERERS: dict[str, Callable[[FormattedToolCall], RenderableType]] = {
+_CALL_RENDERERS: dict[str, Callable[[FormattedToolCall, str], RenderableType]] = {
     "edit": _call_edit,
     "write": _call_write,
     "read": _call_read,
@@ -325,14 +349,20 @@ _CALL_RENDERERS: dict[str, Callable[[FormattedToolCall], RenderableType]] = {
 }
 
 
-def render_tool_call_widget(tc: FormattedToolCall) -> RenderableType:
-    """Dispatch a tool call to its per-tool widget renderer."""
+def render_tool_call_widget(
+    tc: FormattedToolCall, state: str = "pending"
+) -> RenderableType:
+    """Dispatch a tool call to its per-tool widget renderer.
+
+    `state` controls the leading marker: "pending" → `○` dim, "success" → `●`
+    green, "error" → `●` red.
+    """
     if tc.is_subagent:
-        return _call_subagent(tc)
+        return _call_subagent(tc, state)
     renderer = _CALL_RENDERERS.get(_tool_alias(tc.name))
     if renderer is None:
-        return _call_generic(tc)
-    return renderer(tc)
+        return _call_generic(tc, state)
+    return renderer(tc, state)
 
 
 # ── Per-tool result renderers ─────────────────────────────────────────────

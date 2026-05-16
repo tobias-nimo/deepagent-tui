@@ -424,6 +424,10 @@ class DeepAgentTUI(App):
         self._thinking_timer = None
         self._thinking_frame: int = 0
         self._pending_attachments: list[str] = []
+        # Pending tool calls awaiting their result. Keyed by tool_call_id so the
+        # marker on the call widget can be flipped from ○ pending → ● green/red
+        # once the corresponding tool message arrives.
+        self._tool_widgets: dict[str, tuple[Static, FormattedToolCall]] = {}
         # ESC-rollback bookkeeping: capture the in-flight turn so ESC during
         # streaming can drop the user message and restore it to the input bar.
         self._stream_worker = None
@@ -1100,6 +1104,7 @@ class DeepAgentTUI(App):
         container = self.query_one("#messages", Container)
         for child in list(container.children):
             child.remove()
+        self._tool_widgets.clear()
 
     def action_scroll_history_up(self) -> None:
         try:
@@ -1211,12 +1216,25 @@ class DeepAgentTUI(App):
     def _write_tool_call(self, tc: FormattedToolCall) -> None:
         from deepagent_repl.ui.tool_widgets import render_tool_call_widget
 
-        self._write_renderable(render_tool_call_widget(tc))
+        widget = Static(render_tool_call_widget(tc, state="pending"), classes="msg")
+        self._messages.mount(widget)
+        if tc.id:
+            self._tool_widgets[tc.id] = (widget, tc)
+        self._scroll_to_input()
 
     def _write_tool_result(self, result: FormattedToolResult) -> None:
-        from deepagent_repl.ui.tool_widgets import render_tool_result_widget
+        from deepagent_repl.ui.tool_widgets import (
+            render_tool_call_widget,
+            render_tool_result_widget,
+        )
 
-        self._write_renderable(render_tool_result_widget(result))
+        entry = self._tool_widgets.pop(result.tool_call_id, None)
+        call = entry[1] if entry else None
+        if entry is not None:
+            widget, tc = entry
+            state = "error" if result.is_error else "success"
+            widget.update(render_tool_call_widget(tc, state=state))
+        self._write_renderable(render_tool_result_widget(result, call=call))
 
     def _flush_capture(self, cap: "_Capture") -> None:
         raw = cap.buf.getvalue()
