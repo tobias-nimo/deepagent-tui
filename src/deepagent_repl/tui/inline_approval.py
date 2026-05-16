@@ -19,16 +19,22 @@ _OPTION_LABELS: dict[str, str] = {
     "approve": "Yes",
     "accept": "Yes",
     "yes": "Yes",
-    "edit": "Edit",
     "reject": "No",
     "deny": "No",
     "no": "No",
 }
 
+# Decisions we don't surface in the inline UI. `edit` would need an editor
+# round-trip to collect the revised payload — without that, picking it just
+# silently degrades to approve, so we drop it from the list entirely.
+_HIDDEN_OPTIONS = {"edit"}
+
 
 def _friendly_options(interrupt: InterruptInfo) -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     for raw in interrupt.options:
+        if raw.lower() in _HIDDEN_OPTIONS:
+            continue
         label = _OPTION_LABELS.get(raw.lower(), raw.replace("_", " ").capitalize())
         out.append((raw, label))
     return out
