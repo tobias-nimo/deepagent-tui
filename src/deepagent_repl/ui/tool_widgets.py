@@ -96,6 +96,7 @@ def _tool_alias(name: str) -> str:
         "shell": "bash",
         "run_shell": "bash",
         "run_command": "bash",
+        "execute": "bash",
         "list_files": "ls",
         "list_directory": "ls",
     }
@@ -229,7 +230,7 @@ def _call_grep(tc: FormattedToolCall, state: str) -> RenderableType:
         summary.append("  (", style="dim")
         summary.append(str(glob), style="dim")
         summary.append(")", style="dim")
-    return _header("Grep", summary if summary.plain else None, state=state)
+    return _header("Search", summary if summary.plain else None, state=state)
 
 
 def _call_glob(tc: FormattedToolCall, state: str) -> RenderableType:
@@ -243,7 +244,7 @@ def _call_glob(tc: FormattedToolCall, state: str) -> RenderableType:
         if summary.plain:
             summary.append("  in ", style="dim")
         summary.append(str(path), style="dim")
-    return _header("Glob", summary if summary.plain else None, state=state)
+    return _header("Find", summary if summary.plain else None, state=state)
 
 
 def _call_bash(tc: FormattedToolCall, state: str) -> RenderableType:
@@ -263,7 +264,7 @@ def _call_bash(tc: FormattedToolCall, state: str) -> RenderableType:
 def _call_ls(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     path = a.get("path") or a.get("directory") or "."
-    return _header("ls", str(path), state=state)
+    return _header("List", str(path), state=state)
 
 
 def _call_write_todos(tc: FormattedToolCall, state: str) -> RenderableType:
