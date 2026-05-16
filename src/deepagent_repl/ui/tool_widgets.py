@@ -29,11 +29,6 @@ def _state_marker(state: str) -> tuple[str, str]:
         return _MARKER, "#9a2a2a"
     return _PENDING_MARKER, "dim"
 
-# Cap on inline-rendered Write content; longer files get a "+N more lines"
-# trailer so the trace doesn't explode.
-_MAX_WRITE_LINES = 20
-
-
 def _accent() -> str:
     return _theme.ACCENT_COLOR
 
@@ -105,30 +100,6 @@ def _tool_alias(name: str) -> str:
     return aliases.get(n, n)
 
 
-def _build_diff(old: str, new: str) -> Text | None:
-    old_lines = old.splitlines() or [""]
-    new_lines = new.splitlines() or [""]
-    diff = list(difflib.unified_diff(old_lines, new_lines, lineterm=""))
-    if not diff:
-        return None
-    out = Text()
-    accent = _accent()
-    first = True
-    for line in diff[2:]:  # skip --- / +++ headers
-        if not first:
-            out.append("\n")
-        first = False
-        if line.startswith("+"):
-            out.append(line, style="green")
-        elif line.startswith("-"):
-            out.append(line, style="red")
-        elif line.startswith("@@"):
-            out.append(line, style=f"dim {accent}")
-        else:
-            out.append(line, style="dim")
-    return out
-
-
 def _format_args(args: dict, max_total: int = 120) -> str:
     if not args:
         return ""
@@ -153,10 +124,7 @@ def _format_args(args: dict, max_total: int = 120) -> str:
 def _call_edit(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     file_path = a.get("file_path") or a.get("path") or ""
-    old_string = str(a.get("old_string", ""))
-    new_string = str(a.get("new_string", ""))
     replace_all = a.get("replace_all", False)
-
     summary = Text()
     if file_path:
         summary.append(file_path, style="dim")
@@ -164,35 +132,13 @@ def _call_edit(tc: FormattedToolCall, state: str) -> RenderableType:
         if summary.plain:
             summary.append("  ", style="dim")
         summary.append("(replace_all)", style="dim yellow")
-
-    header = _header("Edit", summary if summary.plain else None, state=state)
-    diff = _build_diff(old_string, new_string)
-    if diff is None:
-        return header
-    return Group(header, _indent_block(diff))
+    return _header("Edit", summary if summary.plain else None, state=state)
 
 
 def _call_write(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     file_path = a.get("file_path") or a.get("path") or ""
-    content = str(a.get("content") or a.get("file_text") or "")
-
-    header = _header("Write", file_path if file_path else None, state=state)
-    if not content:
-        return header
-
-    lines = content.splitlines()
-    shown = lines[:_MAX_WRITE_LINES]
-    body = Text()
-    for i, line in enumerate(shown):
-        if i:
-            body.append("\n")
-        body.append("+ " + line, style="green")
-    extra = len(lines) - len(shown)
-    if extra > 0:
-        body.append("\n")
-        body.append(f"… +{extra} more line{'s' if extra != 1 else ''}", style="dim")
-    return Group(header, _indent_block(body))
+    return _header("Write", file_path if file_path else None, state=state)
 
 
 def _call_read(tc: FormattedToolCall, state: str) -> RenderableType:
@@ -475,20 +421,129 @@ def _result_glob(result: FormattedToolResult, call) -> RenderableType:
     return _corner_inline(_match_count_text(len(matches)))
 
 
+# Dim-on-dark backgrounds for diff lines, plus solid marker colours. Hex so
+# truecolor terminals render them consistently and 256-colour fall-backs map
+# to a close neighbour rather than ANSI red/green at full intensity.
+_DIFF_BG_ADD = "#0e2718"
+_DIFF_BG_DEL = "#2c1414"
+_DIFF_FG_ADD = "#2ea043"
+_DIFF_FG_DEL = "#f85149"
+_DIFF_MAX_LINES = 7
+
+
+def _build_diff_lines(old: str, new: str) -> list[tuple[str, str]]:
+    """Unified diff broken into (kind, text) pairs where kind ∈ {'+', '-', ' '}.
+    Drops the file-header (`---` / `+++`) and hunk (`@@`) lines so the caller
+    can format each line itself."""
+    old_lines = old.splitlines() or [""]
+    new_lines = new.splitlines() or [""]
+    raw = list(difflib.unified_diff(old_lines, new_lines, lineterm="", n=3))
+    out: list[tuple[str, str]] = []
+    for line in raw:
+        if line.startswith("---") or line.startswith("+++") or line.startswith("@@"):
+            continue
+        if line.startswith("+"):
+            out.append(("+", line[1:]))
+        elif line.startswith("-"):
+            out.append(("-", line[1:]))
+        else:
+            out.append((" ", line[1:] if line.startswith(" ") else line))
+    return out
+
+
+def _added_removed_summary(added: int, removed: int) -> str:
+    if not added and not removed:
+        return "no changes"
+    parts: list[str] = []
+    if added:
+        parts.append(f"Added {added} line{'s' if added != 1 else ''}")
+    if removed:
+        word = "removed" if added else "Removed"
+        parts.append(f"{word} {removed} line{'s' if removed != 1 else ''}")
+    return ", ".join(parts)
+
+
+def _render_diff_body(diff_lines: list[tuple[str, str]]) -> Text:
+    """Render diff hunks with `+`/`-` markers and a dim background, capped at
+    `_DIFF_MAX_LINES`; trailing overflow is summarised as `… (+N more)`."""
+    shown = diff_lines[:_DIFF_MAX_LINES]
+    body = Text()
+    for i, (kind, text) in enumerate(shown):
+        if i:
+            body.append("\n")
+        if kind == "+":
+            body.append("+ ", style=f"bold {_DIFF_FG_ADD} on {_DIFF_BG_ADD}")
+            body.append(text, style=f"on {_DIFF_BG_ADD}")
+        elif kind == "-":
+            body.append("- ", style=f"bold {_DIFF_FG_DEL} on {_DIFF_BG_DEL}")
+            body.append(text, style=f"on {_DIFF_BG_DEL}")
+        else:
+            body.append("  ", style="dim")
+            body.append(text, style="dim")
+    extra = len(diff_lines) - len(shown)
+    if extra > 0:
+        body.append("\n")
+        body.append(f"… (+{extra} more line{'s' if extra != 1 else ''})", style="dim")
+    return body
+
+
+def _corner_block_with_summary(summary: str, body: Text) -> Text:
+    """⎿ summary on the corner line; `body` lines align under the summary."""
+    out = Text()
+    out.append(_INDENT)
+    out.append("⎿ ", style="dim")
+    out.append(summary, style="dim")
+    if not body.plain:
+        return out
+    align = _INDENT + "  "
+    for line in body.split("\n"):
+        out.append("\n")
+        out.append(align)
+        out.append_text(line)
+    return out
+
+
 def _result_edit(result: FormattedToolResult, call) -> RenderableType:
     if result.is_error:
         return _result_inline(result.summary, error=True)
-    header = _result_header(error=False)
-    header.append("applied", style="dim")
-    return header
+    if call is None:
+        return _corner_inline("applied")
+    old_string = str(call.args.get("old_string", ""))
+    new_string = str(call.args.get("new_string", ""))
+    diff_lines = _build_diff_lines(old_string, new_string)
+    if not diff_lines:
+        return _corner_inline("applied")
+    added = sum(1 for k, _ in diff_lines if k == "+")
+    removed = sum(1 for k, _ in diff_lines if k == "-")
+    return _corner_block_with_summary(
+        _added_removed_summary(added, removed),
+        _render_diff_body(diff_lines),
+    )
 
 
 def _result_write(result: FormattedToolResult, call) -> RenderableType:
     if result.is_error:
         return _result_inline(result.summary, error=True)
-    header = _result_header(error=False)
-    header.append("saved", style="dim")
-    return header
+    if call is None:
+        return _corner_inline("saved")
+    content = str(call.args.get("content") or call.args.get("file_text") or "")
+    if not content:
+        return _corner_inline("saved")
+    lines = content.splitlines() or [""]
+    n = len(lines)
+    summary = f"Added {n} line{'s' if n != 1 else ''}"
+    shown = lines[:_DIFF_MAX_LINES]
+    body = Text()
+    for i, line in enumerate(shown):
+        if i:
+            body.append("\n")
+        body.append("+ ", style=f"bold {_DIFF_FG_ADD} on {_DIFF_BG_ADD}")
+        body.append(line, style=f"on {_DIFF_BG_ADD}")
+    extra = n - len(shown)
+    if extra > 0:
+        body.append("\n")
+        body.append(f"… (+{extra} more line{'s' if extra != 1 else ''})", style="dim")
+    return _corner_block_with_summary(summary, body)
 
 
 def _corner_block(body: Text) -> Text:
