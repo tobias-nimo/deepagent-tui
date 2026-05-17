@@ -11,8 +11,8 @@ import pytest
 from textual.containers import Container, VerticalScroll
 from textual.widgets import OptionList
 
-from deepagent_repl import cli as cli_module
-from deepagent_repl.tui.app import (
+from deepagent_tui import cli as cli_module
+from deepagent_tui.tui.app import (
     ChatBar,
     ChatTextArea,
     DeepAgentTUI,

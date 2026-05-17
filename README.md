@@ -1,4 +1,4 @@
-# deepagent-repl
+# deepagent-tui
 
 A rich terminal REPL for any [LangChain Deep Agent](https://github.com/langchain-ai/deepagents) server. Connect to any LangGraph server, stream responses with live markdown rendering, handle human-in-the-loop interrupts, manage threads, invoke skills, and more.
 
@@ -21,7 +21,7 @@ uv sync
 cd /path/to/your/agent && uv run langgraph dev --no-browser
 
 # Connect
-uv run deepagent-repl
+uv run deepagent-tui
 ```
 
 ## Configuration
@@ -101,16 +101,16 @@ Send a single message without entering the REPL:
 
 ```bash
 # Streaming output (default)
-deepagent-repl "What is the capital of France?"
+deepagent-tui "What is the capital of France?"
 
 # Plain text, no streaming
-deepagent-repl --no-stream "Summarize this file"
+deepagent-tui --no-stream "Summarize this file"
 
 # Raw JSON output
-deepagent-repl --json "List all tools"
+deepagent-tui --json "List all tools"
 
 # Piped input
-echo "Explain this error" | deepagent-repl
+echo "Explain this error" | deepagent-tui
 ```
 
 ## Troubleshooting
@@ -129,7 +129,7 @@ This allows iTerm2 to send a distinguishable key sequence for Shift+Enter. Witho
 
 | Path | Purpose |
 |------|---------|
-| `~/.deepagent-repl/history` | Persistent command history |
-| `~/.deepagent-repl/threads.db` | Thread index (SQLite) |
-| `~/.deepagent-repl/rules.json` | Tool approval rules |
+| `~/.deepagent-tui/history` | Persistent command history |
+| `~/.deepagent-tui/threads.db` | Thread index (SQLite) |
+| `~/.deepagent-tui/rules.json` | Tool approval rules |
 | `.env` | Configuration |
