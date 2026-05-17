@@ -17,7 +17,7 @@ async def cmd_skills(client, session, args: str) -> None:
         try:
             skills_from_state = await client.get_skills_from_state(session.thread_id)
             if skills_from_state:
-                from deepagent_tui.cli import _register_skill_command
+                from deepagent_tui.bootstrap import register_skill_command
 
                 session.discovered_skills_from_state = True
                 for skill in skills_from_state:
@@ -26,7 +26,7 @@ async def cmd_skills(client, session, args: str) -> None:
                     path = skill.get("path", "")
                     if name:
                         session.discovered_tools[name] = desc
-                        _register_skill_command(name, desc, path)
+                        register_skill_command(name, desc, path)
                 render_info(f"Found {len(skills_from_state)} skill(s). Use /<skill-name> to invoke.")
             else:
                 render_info(

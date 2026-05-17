@@ -93,3 +93,18 @@ async def dispatch(client: "AgentClient", session: "Session", text: str) -> bool
     handler, _ = entry
     await handler(client, session, args)
     return True
+
+
+# Side-effect imports — each module registers its handlers via the @command
+# decorator at import time, populating `_builtin`. Kept at the bottom so the
+# decorator and registry are defined before the modules try to use them.
+from deepagent_tui.commands import (  # noqa: E402, F401
+    builtins,
+    export,
+    fork,
+    new,
+    resume,
+    skills,
+    theme,
+    threads,
+)

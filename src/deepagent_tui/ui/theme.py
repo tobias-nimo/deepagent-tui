@@ -92,35 +92,6 @@ def persist_theme(name: str) -> None:
         pass
 
 
-_PTK_ANSI: dict[str, str] = {
-    "cyan": "ansicyan",
-    "blue": "ansiblue",
-    "green": "ansigreen",
-    "magenta": "ansimagenta",
-    "red": "ansired",
-    "yellow": "ansiyellow",
-    "white": "ansiwhite",
-    "bright_cyan": "ansibrightcyan",
-    "bright_blue": "ansibrightblue",
-    "bright_green": "ansibrightgreen",
-    "bright_magenta": "ansibrightmagenta",
-    "bright_red": "ansibrightred",
-    "bright_yellow": "ansibrightyellow",
-    "bright_white": "ansibrightwhite",
-}
-
-
-def accent_ptk() -> str:
-    """Return accent color as a prompt_toolkit fg: style string."""
-    color = _CURRENT.accent
-    if color.startswith("#"):
-        return f"fg:{color}"
-    ptk = _PTK_ANSI.get(color)
-    if ptk:
-        return f"fg:{ptk}"
-    return f"fg:{color}"
-
-
 def markdown_theme() -> RichTheme:
     """Rich Theme overriding markdown element styles to match the current
     palette. Rich's defaults hard-code cyan/magenta for inline code, headings,

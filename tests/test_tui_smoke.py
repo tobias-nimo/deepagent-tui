@@ -11,7 +11,7 @@ import pytest
 from textual.containers import Container, VerticalScroll
 from textual.widgets import OptionList
 
-from deepagent_tui import cli as cli_module
+from deepagent_tui import bootstrap as bootstrap_module
 from deepagent_tui.tui.app import (
     ChatBar,
     ChatTextArea,
@@ -35,8 +35,8 @@ async def _fake_discover(client, session) -> None:
 @pytest.fixture(autouse=True)
 def _stub_bootstrap(monkeypatch: pytest.MonkeyPatch) -> None:
     """Replace the network-touching bootstrap helpers the TUI calls in on_mount."""
-    monkeypatch.setattr(cli_module, "connect", _fake_connect)
-    monkeypatch.setattr(cli_module, "discover_and_register_skills", _fake_discover)
+    monkeypatch.setattr(bootstrap_module, "connect", _fake_connect)
+    monkeypatch.setattr(bootstrap_module, "discover_and_register_skills", _fake_discover)
 
 
 async def test_app_boots_and_mounts_core_widgets() -> None:
@@ -88,7 +88,7 @@ async def test_connect_failure_does_not_crash_app(monkeypatch: pytest.MonkeyPatc
     async def _failing_connect(client, session) -> bool:
         return False
 
-    monkeypatch.setattr(cli_module, "connect", _failing_connect)
+    monkeypatch.setattr(bootstrap_module, "connect", _failing_connect)
     app = DeepAgentTUI()
     async with app.run_test() as pilot:
         await pilot.pause()

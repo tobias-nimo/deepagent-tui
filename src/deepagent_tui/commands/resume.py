@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from deepagent_tui.commands import command
 from deepagent_tui.storage.db import get_thread, list_threads
-from deepagent_tui.ui.prompt import select_option_interactive
+from deepagent_tui.tui.screens import PickerItem
 from deepagent_tui.ui.renderer import render_error, render_info
 
 
@@ -37,17 +37,6 @@ def _relative_time(ts: str | None) -> str:
         return f"{mo} month{'s' if mo != 1 else ''} ago"
     y = secs // (86400 * 365)
     return f"{y} year{'s' if y != 1 else ''} ago"
-
-
-def _format_option(t: dict, is_current: bool) -> str:
-    """Build a single-line label for the CLI prompt_toolkit picker."""
-    marker = "* " if is_current else "  "
-    tid = t["id"][:10] + "…"
-    graph = t["graph_id"] or ""
-    msgs = str(t["message_count"])
-    last = (t["last_message"] or "")[:30]
-    updated = (t["updated_at"] or "")[:16]
-    return f"{marker}{tid}  {graph:<12}  {msgs:>3} msgs  {last:<30}  {updated}"
 
 
 _TITLE_MAX = 80
@@ -99,33 +88,20 @@ async def cmd_resume(client, session, args: str) -> None:
         render_info("No saved threads to resume.")
         return
 
-    picker = getattr(session, "picker", None)
-    if picker is not None:
-        from deepagent_tui.tui.screens import PickerItem
-
-        items = [
-            PickerItem(
-                title=_row_title(t),
-                subtitle=_row_subtitle(t, t["id"] == session.thread_id),
-                value=t["id"],
-            )
-            for t in threads
-        ]
-        chosen_id = await picker(items, "Resume session", max_visible=10)
-        if chosen_id is None:
-            render_info("Cancelled.")
-            return
-        await _switch_thread(client, session, chosen_id)
-        return
-
-    options = [_format_option(t, t["id"] == session.thread_id) for t in threads[:10]]
-    chosen = await select_option_interactive(options)
-    if chosen is None:
+    picker = session.picker
+    items = [
+        PickerItem(
+            title=_row_title(t),
+            subtitle=_row_subtitle(t, t["id"] == session.thread_id),
+            value=t["id"],
+        )
+        for t in threads
+    ]
+    chosen_id = await picker(items, "Resume session", max_visible=10)
+    if chosen_id is None:
         render_info("Cancelled.")
         return
-
-    idx = options.index(chosen)
-    await _switch_thread(client, session, threads[idx]["id"])
+    await _switch_thread(client, session, chosen_id)
 
 
 async def _resume_by_id(client, session, thread_id: str) -> None:
@@ -168,23 +144,6 @@ async def _switch_thread(client, session, thread_id: str) -> None:
     except Exception:
         messages = []
 
-    # TUI: clear the screen and re-render the past conversation in place,
-    # so the user picks up where they left off instead of seeing a status banner.
-    replay = getattr(session, "replay", None)
-    if replay is not None:
-        await replay(messages)
-        return
-
-    if messages:
-        msg_count = len(messages)
-        last_msg = messages[-1]
-        last_content = last_msg.get("content", "")
-        if isinstance(last_content, list):
-            last_content = " ".join(
-                c.get("text", "") for c in last_content if isinstance(c, dict)
-            )
-        preview = last_content[:80] + "..." if len(last_content) > 80 else last_content
-        render_info(f"Resumed thread: {thread_id}")
-        render_info(f"  {msg_count} messages — last: {preview}")
-    else:
-        render_info(f"Resumed thread: {thread_id} (empty)")
+    # Clear the screen and re-render the past conversation in place so the
+    # user picks up where they left off instead of seeing a status banner.
+    await session.replay(messages)

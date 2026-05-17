@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from deepagent_tui.commands import command
 from deepagent_tui.storage.db import upsert_thread
-from deepagent_tui.ui.prompt import select_option_interactive
+from deepagent_tui.tui.screens import PickerItem
 from deepagent_tui.ui.renderer import render_error, render_info
 
 
@@ -78,38 +78,18 @@ async def cmd_fork(client, session, args: str) -> None:
     unique_checkpoints.sort(key=lambda x: x[0])
     unique_checkpoints = unique_checkpoints[-10:]
 
-    # Build display options
-    options = []
-    for i, (idx, text, _entry) in enumerate(unique_checkpoints, 1):
-        preview = text.replace("\n", " ").strip()
-        if len(preview) > 70:
-            preview = preview[:67] + "..."
-        options.append(f"#{i}  {preview}")
-
-    picker = getattr(session, "picker", None)
-    if picker is not None:
-        from deepagent_tui.tui.screens import PickerItem
-
-        items = [
-            PickerItem(
-                title=preview.replace("\n", " ").strip()[:200],
-                subtitle=f"message #{i}  ·  {len(preview)} chars",
-                value=i - 1,
-            )
-            for i, (idx, preview, _entry) in enumerate(unique_checkpoints, 1)
-        ]
-        chosen_idx = await picker(items, "Fork from message")
-        if chosen_idx is None:
-            render_info("Cancelled.")
-            return
-        choice = chosen_idx
-    else:
-        render_info("Select a message to fork from (↑↓ to move, Enter to confirm, Ctrl+C to cancel):")
-        chosen = await select_option_interactive(options)
-        if chosen is None:
-            render_info("Cancelled.")
-            return
-        choice = options.index(chosen)
+    items = [
+        PickerItem(
+            title=preview.replace("\n", " ").strip()[:200],
+            subtitle=f"message #{i}  ·  {len(preview)} chars",
+            value=i - 1,
+        )
+        for i, (idx, preview, _entry) in enumerate(unique_checkpoints, 1)
+    ]
+    choice = await session.picker(items, "Fork from message")
+    if choice is None:
+        render_info("Cancelled.")
+        return
 
     idx, text, checkpoint_entry = unique_checkpoints[choice]
 
@@ -139,12 +119,7 @@ async def cmd_fork(client, session, args: str) -> None:
 
         await upsert_thread(new_thread_id, session.graph_id or "")
 
-        replay = getattr(session, "replay", None)
-        if replay is not None:
-            await replay(fork_messages)
-            render_info(f"Forked from message #{choice + 1}.")
-            return
-
+        await session.replay(fork_messages)
         render_info(f"Forked from message #{choice + 1}.")
 
     except Exception as e:

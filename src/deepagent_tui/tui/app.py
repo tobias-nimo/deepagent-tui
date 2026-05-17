@@ -469,7 +469,7 @@ class DeepAgentTUI(App):
         welcome = self.query_one("#welcome", WelcomeBanner)
         welcome.set_connecting(settings.langgraph_url)
 
-        from deepagent_tui.cli import connect, discover_and_register_skills
+        from deepagent_tui.bootstrap import connect, discover_and_register_skills
 
         with _capture_console() as cap:
             try:
@@ -1069,7 +1069,7 @@ class DeepAgentTUI(App):
             skills = []
 
         if skills and not self.session.discovered_skills_from_state:
-            from deepagent_tui.cli import _register_skill_command
+            from deepagent_tui.bootstrap import register_skill_command
 
             self.session.discovered_skills_from_state = True
             for sk in skills:
@@ -1079,7 +1079,7 @@ class DeepAgentTUI(App):
                 desc = sk.get("description", "")
                 path = sk.get("path", "")
                 self.session.discovered_tools[name] = desc
-                _register_skill_command(name, desc, path)
+                register_skill_command(name, desc, path)
 
         if self.session.workspace_root:
             return
