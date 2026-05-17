@@ -336,7 +336,7 @@ def _call_write_todos(tc: FormattedToolCall, state: str) -> RenderableType:
         if i:
             body.append("\n")
         if status == "completed":
-            box, style = "✓", "dim"
+            box, style = "●", "dim strike"
         elif status in _IN_PROGRESS_STATUSES:
             box, style = "◐", "bold"
         elif status in _SKIPPED_STATUSES:
