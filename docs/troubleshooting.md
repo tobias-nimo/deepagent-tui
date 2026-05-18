@@ -2,34 +2,100 @@
 
 Common failure modes and how to recover.
 
-## TUI can't connect to the server
+## "Cannot connect to <url>"
 
-> Symptoms, things to check (`LANGGRAPH_URL`, server up, network), how to read the error.
+The TUI couldn't reach `LANGGRAPH_URL`. Check:
 
-## Wrong assistant / multiple graphs
+- Your LangGraph server is running. From the agent repo: `uv run langgraph dev --no-browser`
+- `LANGGRAPH_URL` points to the right port (default `http://localhost:2024`)
+- For LangGraph Cloud or remote servers, `LANGSMITH_API_KEY` is set
 
-> When auto-discovery picks the wrong one — pin with `GRAPH_ID`.
+The TUI auto-exits 3 seconds after a failed connect so you can fix the env and re-launch.
 
-## Auth failures
+## "No assistants found on server"
 
-> When `LANGSMITH_API_KEY` is required, how to confirm it's loaded.
+The server is up but `assistants.search()` returned nothing. This usually means the LangGraph project hasn't been built or registered. Re-run `langgraph dev` from the agent project root.
+
+## "Multiple assistants found — defaulting to the first one"
+
+There's no interactive picker for this case. The TUI uses the first assistant and prints all of them so you can pin one:
+
+```bash
+GRAPH_ID=my_agent uv run deepagent-tui
+```
+
+## "Graph '<id>' not found"
+
+`GRAPH_ID` doesn't match any of the assistants the server exposes. The error includes the available graph ids — copy-paste the one you want.
 
 ## `Shift+Enter` inserts garbage instead of a newline
 
-> Terminal doesn't forward the modifier. Use `Alt+Enter` or `Ctrl+J`; see [keybindings.md](keybindings.md) for the terminal compatibility list.
+The terminal isn't forwarding the `Shift` modifier on `Enter`. Either:
+
+- Switch to a terminal that supports it: Kitty, Ghostty, WezTerm
+- In iTerm2: Settings → Profiles → Keys → enable **"Report modifiers using CSI u"**
+- Or use the fallback: `Alt+Enter` or `Ctrl+J` — these always work
 
 ## Image paste doesn't attach
 
-> When the terminal doesn't yield a path, what to do, recognized formats.
+A pasted/dropped path is left as text instead of becoming a chip. Checks:
+
+- The file extension must be one of `.png .jpg .jpeg .gif .bmp .webp .svg .tiff .ico`
+- The file must exist at the resolved path
+- The path must be absolute. Relative paths aren't extracted
+
+When dragging from Finder/Files, your terminal needs to paste the path; if it doesn't, paste the path manually.
 
 ## Thread doesn't appear in `/threads`
 
-> When the local SQLite index drifts from server state, how to recover or reset (`~/.deepagent-tui/threads.db`).
+`/threads` reads from `~/.deepagent-tui/threads.db` — the local index. A thread is missing when:
+
+- It was created on a different machine
+- The local index was deleted
+- The thread was created via the LangGraph server directly (not via this TUI)
+
+`/resume <thread_id>` falls back to a server lookup, so you can still attach to threads that aren't in the local index — they'll be added on the next assistant turn.
+
+## `/fork` fails with "no assigned graph ID"
+
+Forking copies state from the source thread, and the server needs a `graph_id` on that thread to do it. A brand-new thread that hasn't completed a run yet doesn't have one. Send at least one message before forking.
+
+## `/skills` shows nothing
+
+Two causes:
+
+1. The agent uses `SkillsMiddleware` and hasn't loaded skills yet — send a message, then run `/skills refresh`.
+2. The agent doesn't expose skills via metadata or thread state. The TUI can't surface what isn't there.
+
+## `/copy` fails on Linux
+
+The TUI tries `wl-copy` (Wayland), `xsel`, then `xclip` in that order. Install one of them:
+
+```bash
+# Wayland
+sudo apt install wl-clipboard
+# X11
+sudo apt install xsel       # or xclip
+```
 
 ## Theme reverts on restart
 
-> Persistence file location, env override precedence.
+`~/.deepagent-tui/theme` couldn't be written (permissions, full disk). The error is silent — check the file exists and is writable. Until then, set `DEEPAGENT_THEME=<name>` to pin the theme via env.
 
-## Approval prompt seems stuck
+## Approval prompt is stuck
 
-> What to check server-side, how `Esc` interacts with retries. See [hitl.md](hitl.md).
+The approval widget polls thread state and loops until no pending interrupts remain. If a reject loops back to another approval prompt, that's expected — the agent often reacts to a rejection by trying a different tool call. Keep rejecting or approve once to break the loop.
+
+If the prompt genuinely hangs (no streaming, no new prompt), `Esc` rejects the current one; `Ctrl+C` quits the TUI. Then check the LangGraph server logs — the run may have errored server-side.
+
+## Status bar shows `$0.0000` for cost
+
+The model name isn't in `MODEL_PRICING` (see `src/deepagent_tui/utils/cost.py`). Add an entry for your model, or accept that cost tracking is best-effort for unknown models.
+
+## Debug mode
+
+Set `DEEPAGENT_DEBUG=1` before launching to surface stream events, tracebacks, and worker errors inline in the transcript:
+
+```bash
+DEEPAGENT_DEBUG=1 uv run deepagent-tui
+```
