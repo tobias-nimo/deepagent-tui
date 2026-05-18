@@ -27,6 +27,7 @@ THEMES: dict[str, Theme] = {
     "sunset":     Theme("sunset",     "#ff8c42",  "#ff6b9d", (255, 140, 66),   (155, 81, 224)),
     "ocean":      Theme("ocean",      "#5eead4",  "#38bdf8", (94, 234, 212),   (30, 64, 175)),
     "neon":       Theme("neon",       "#ff2bd6",  "#fff200", (255, 43, 214),   (140, 82, 255)),
+    "langchain":  Theme("langchain",  "#a5c8ff",  "#5b9eff", (200, 220, 255),  (60, 130, 220)),
 }
 
 _CONFIG_DIR = Path.home() / ".deepagent-tui"

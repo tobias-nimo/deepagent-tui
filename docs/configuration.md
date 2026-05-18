@@ -12,7 +12,7 @@
 | `LANGSMITH_API_KEY` | — | API key for authenticated connections (LangGraph Cloud) |
 | `DEEPAGENT_THEME` | `default` | Initial UI theme |
 
-`DEEPAGENT_THEME` must be one of: `default`, `aesthetic`, `vintage`, `monochrome`, `terminal`, `sunset`, `ocean`, `neon`. See [themes.md](themes.md) for the catalog.
+`DEEPAGENT_THEME` must be one of: `default`, `aesthetic`, `vintage`, `monochrome`, `terminal`, `sunset`, `ocean`, `neon`, `langchain`. See [themes.md](themes.md) for the catalog.
 
 ## `.env` files
 

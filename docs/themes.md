@@ -1,6 +1,6 @@
 # Themes
 
-Eight built-in themes, switchable at runtime and persisted across sessions.
+Nine built-in themes, switchable at runtime and persisted across sessions.
 
 ## Catalog
 
@@ -20,6 +20,7 @@ Each theme defines four colors:
 | `sunset` | `#ff8c42` | `#ff6b9d` | orange → pink → violet |
 | `ocean` | `#5eead4` | `#38bdf8` | teal → indigo |
 | `neon` | `#ff2bd6` | `#fff200` | magenta → violet |
+| `langchain` | `#a5c8ff` | `#5b9eff` | icy blue → LangChain blue |
 
 Run `/theme` to see the actual swatches in your terminal.
 
