@@ -7,6 +7,9 @@ All commands start with `/` and have tab-completion. While typing a slash comman
 ### `/commands`
 Lists built-in commands as a table with names and descriptions. (Dynamic skill commands appear via `/skills` instead.)
 
+### `/help`
+Opens a full-screen help view (`HelpScreen` in `tui/screens.py`) with keyboard shortcuts and tips. Esc / Ctrl+C / q closes it; up/down/PageUp/PageDown scroll. Unlike `/commands`, this is a modal screen rather than inline output — same pattern as `/resume` and `/fork`.
+
 ### `/status`
 Shows the current session at a glance:
 

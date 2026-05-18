@@ -64,6 +64,16 @@ While the approval is showing, the chat bar and rules are hidden so the hint lin
 | `Enter` | Select the highlighted item |
 | `Esc` / `Ctrl+C` | Cancel and return without selecting |
 
+## Help screen
+
+`/help` opens a full-screen help view (static content, no selection).
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` / `j` / `k` | Scroll by one line |
+| `PgUp` / `PgDn` | Scroll by a page |
+| `Esc` / `Ctrl+C` / `q` | Close |
+
 ## Terminal caveats
 
 `Shift+Enter` requires the terminal to forward the modifier as a distinct keycode. These terminals are known to support it:

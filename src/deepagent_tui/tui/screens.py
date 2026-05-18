@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from rich.console import Group, RenderableType
+from rich.table import Table
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
@@ -266,3 +267,116 @@ class PickerScreen(Screen[Any]):
         children = list(container.children)
         if 0 <= self._selected < len(children):
             container.scroll_to_widget(children[self._selected], animate=False)
+
+
+class HelpScreen(Screen[None]):
+    """Full-screen help view: keyboard shortcuts and tips.
+
+    Static content (no selection); dismissed with Esc / Ctrl+C / q.
+    """
+
+    DEFAULT_CSS = """
+    HelpScreen { background: $background; layout: vertical; }
+
+    #help-root { padding: 1 2; height: 1fr; background: $background; }
+
+    #help-title {
+        height: auto;
+        color: $text;
+        text-style: bold;
+        padding: 0 0 1 0;
+    }
+
+    #help-body {
+        height: 1fr;
+        background: $background;
+        scrollbar-size: 0 0;
+        padding: 0;
+    }
+
+    #help-body Static {
+        height: auto;
+        background: $background;
+        color: $text;
+        padding: 0 0 1 0;
+    }
+
+    #help-footer {
+        height: auto;
+        color: $text-muted;
+        padding: 0;
+    }
+    """
+
+    SHORTCUTS: list[tuple[str, str]] = [
+        ("Enter", "Send the current message"),
+        ("Shift+Enter", "Insert a newline (multi-line input)"),
+        ("Tab", "Accept the highlighted slash-command autocomplete"),
+        ("Esc", "Cancel a streaming run and restore the typed message"),
+        ("Esc Esc", "Drop pending image attachments"),
+        ("Ctrl+L", "Clear the message log (same as /clear)"),
+        ("Ctrl+C", "Quit the TUI (same as /exit)"),
+        ("PageUp / PageDown", "Scroll the transcript"),
+        ("↑ / ↓ at edge", "Scroll up/down when the cursor is at the input edge"),
+    ]
+
+    TIPS: list[tuple[str, str]] = [
+        ("Slash commands", "Type / to browse commands, or /commands for the full list."),
+        ("Skills", "Run /skills to see what the connected agent can do."),
+        ("Paste images", "Paste a local image path; it attaches to your next message."),
+        ("Resume a thread", "/resume opens a picker of recent threads."),
+        ("Fork from earlier", "/fork branches a new thread from any past user turn."),
+        ("Switch theme", "/theme lists themes; /theme <name> applies one."),
+    ]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="help-root"):
+            yield Static("", id="help-title")
+            with VerticalScroll(id="help-body"):
+                yield Static(self._section("Getting started"))
+                yield Static(Text("Type a message and press Enter to chat with the agent.", style="dim"))
+                yield Static(self._section("Keyboard shortcuts"))
+                yield Static(self._table(self.SHORTCUTS))
+                yield Static(self._section("Tips"))
+                yield Static(self._table(self.TIPS))
+            yield Static("Esc to close", id="help-footer")
+
+    async def on_mount(self) -> None:
+        body = self.query_one("#help-body", VerticalScroll)
+        body.can_focus = False
+        self.can_focus = True
+        self.query_one("#help-title", Static).update(Text("Help", style="bold"))
+        self.set_focus(None)
+
+    async def on_key(self, event: events.Key) -> None:
+        if event.key in ("escape", "ctrl+c", "q"):
+            event.stop()
+            event.prevent_default()
+            self.dismiss(None)
+            return
+        if event.key in ("up", "k"):
+            self.query_one("#help-body", VerticalScroll).scroll_up(animate=False)
+            return
+        if event.key in ("down", "j"):
+            self.query_one("#help-body", VerticalScroll).scroll_down(animate=False)
+            return
+        if event.key == "pageup":
+            self.query_one("#help-body", VerticalScroll).scroll_page_up(animate=False)
+            return
+        if event.key == "pagedown":
+            self.query_one("#help-body", VerticalScroll).scroll_page_down(animate=False)
+            return
+
+    @staticmethod
+    def _section(title: str) -> Text:
+        return Text(title, style=f"bold {_theme.ACCENT_COLOR}")
+
+    @staticmethod
+    def _table(rows: list[tuple[str, str]]) -> Table:
+        width = max(len(k) for k, _ in rows) + 1
+        table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
+        table.add_column("key", style=f"bold {_theme.ACCENT_COLOR}", min_width=width)
+        table.add_column("desc", style="dim", overflow="fold")
+        for key, desc in rows:
+            table.add_row(key, desc)
+        return table

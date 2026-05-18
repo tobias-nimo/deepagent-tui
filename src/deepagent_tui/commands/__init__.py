@@ -114,6 +114,7 @@ from deepagent_tui.commands import (  # noqa: E402, F401
     builtins,
     copy,
     fork,
+    help,
     new,
     resume,
     skills,
