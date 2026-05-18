@@ -122,6 +122,14 @@ async def cmd_fork(client, session, args: str) -> None:
         await session.replay(fork_messages)
         render_info(f"Forked from message #{choice + 1}.")
 
+        # Pre-fill the chat bar with the next user message from the original
+        # conversation — the one the branch would have diverged on — so the
+        # user can edit it and resend (or just hit enter to replay).
+        if end < len(messages):
+            next_text = _extract_text(messages[end].get("content", "")).strip()
+            if next_text and session.set_input is not None:
+                session.set_input(next_text)
+
     except Exception as e:
         msg = str(e)
         if "no assigned graph ID" in msg or "graph_id" in msg.lower():
