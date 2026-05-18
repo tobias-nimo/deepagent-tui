@@ -40,14 +40,14 @@ async def connect(client: AgentClient, session: Session) -> bool:
     elif len(assistants) == 1:
         assistant = assistants[0]
     else:
-        # Multiple assistants and no DEEPAGENT_GRAPH_ID set — the REPL used
-        # to prompt interactively here; the TUI hasn't grown a picker for
-        # this case yet, so fall through to the first assistant and surface
-        # the list as info so the user can pin one via env var.
+        # Multiple assistants and no GRAPH_ID set — the REPL used to prompt
+        # interactively here; the TUI hasn't grown a picker for this case
+        # yet, so fall through to the first assistant and surface the list
+        # as info so the user can pin one via env var.
         render_info("Multiple assistants found — defaulting to the first one:")
         for a in assistants:
             render_info(f"  · {a['graph_id']} (id: {a['assistant_id'][:8]}…)")
-        render_info("Set DEEPAGENT_GRAPH_ID to pin a specific graph.")
+        render_info("Set GRAPH_ID to pin a specific graph.")
         assistant = assistants[0]
 
     session.assistant_id = assistant["assistant_id"]

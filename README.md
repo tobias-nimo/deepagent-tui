@@ -1,135 +1,99 @@
 # deepagent-tui
 
-A rich terminal REPL for any [LangChain Deep Agent](https://github.com/langchain-ai/deepagents) server. Connect to any LangGraph server, stream responses with live markdown rendering, handle human-in-the-loop interrupts, manage threads, invoke skills, and more.
+A terminal UI for any [LangChain Deep Agent](https://github.com/langchain-ai/deepagents) server. Connects to a LangGraph server over the SDK, streams replies as live markdown, surfaces tool calls inline, handles human-in-the-loop approvals with a diff view, and remembers threads locally so you can resume past sessions.
 
-## Features
+Built on [Textual](https://textual.textualize.io/).
 
-- Streaming & Rendering
-- Human-in-the-Loop (HITL)
-- Skills
-- Image support
-- Thread Management
-- Token & Cost Tracking
-
-## Quick Start
+## Quick start
 
 ```bash
 # Install
 uv sync
 
-# Start your Deep Agent server (in another terminal)
+# Start your Deep Agent server in another terminal
 cd /path/to/your/agent && uv run langgraph dev --no-browser
 
-# Connect
+# Launch the TUI
 uv run deepagent-tui
 ```
 
+The TUI connects to `LANGGRAPH_URL` (default `http://localhost:2024`), discovers an assistant, opens a fresh thread, and drops you at a prompt.
+
 ## Configuration
 
-Set via environment variables or `.env` file:
+Set via environment variables or a `.env` file in the working directory.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LANGGRAPH_URL` | `http://localhost:2024` | Server URL |
-| `GRAPH_ID` | auto-discover | Specific graph/assistant to connect to |
+| `LANGGRAPH_URL` | `http://localhost:2024` | LangGraph server URL |
+| `GRAPH_ID` | auto-discover | Pin to a specific graph/assistant when the server exposes more than one |
 | `LANGSMITH_API_KEY` | — | API key for authenticated connections |
 | `THREAD_ID` | — | Resume a specific thread on startup |
 | `DEEPAGENT_THEME` | `default` | UI theme: `default`, `aesthetic`, `vintage`, `monochrome`, `terminal`, `sunset`, `ocean`, `neon` |
 
-## Commands
+See `example.env` for a copy-pasteable starting point.
 
-All commands start with `/` and support **tab completion**.
+## Slash commands
 
-### Session
+All commands start with `/` and have tab-completion (the autocomplete list appears as you type).
 
 | Command | Description |
 |---------|-------------|
-| `/help` | Show all available commands |
-| `/status` | Connection info, token usage, and cost |
+| `/help` | List all available commands |
+| `/status` | Show connection info, model, token usage, cost |
 | `/new` | Start a fresh conversation thread |
-| `/clear` | Clear the terminal screen |
-| `/exit` | Exit the REPL |
-
-### Threads
-
-| Command | Description |
-|---------|-------------|
+| `/clear` | Wipe the message log |
+| `/exit` | Quit the TUI |
 | `/threads` | List saved conversation threads |
-| `/resume [thread_id]` | Resume a past thread |
-| `/fork` | Browse message history and fork from an earlier point |
-| `/compress` | Summarize conversation to reduce token usage |
-| `/export` | Export conversation as markdown transcript |
-| `/copy` | Copy conversation to clipboard |
+| `/resume [thread_id]` | Open the thread picker, or jump straight to a thread by id |
+| `/fork` | Browse the current thread's history and branch from a past user message |
+| `/export` | Save the conversation as a markdown transcript under `.workspace/history/` |
+| `/copy` | Copy the conversation to the clipboard |
+| `/theme [name]` | Switch UI theme; no argument lists themes with previews |
+| `/skills` | List skills discovered from the connected agent |
+| `/skills refresh` | Re-fetch skills from the current thread's state |
+| `/<skill-name> [question]` | Invoke a discovered skill — the agent reads its `SKILL.md` and acts |
 
-### Tools & Skills
-
-| Command | Description |
-|---------|-------------|
-| `/skills` | List discovered skills from the connected agent |
-| `/skills refresh` | Re-fetch skills from thread state |
-| `/<skill-name> [question]` | Invoke a skill — the agent reads its SKILL.md to address the question |
-| `/rules allow <tool>` | Auto-approve a tool (supports wildcards: `edit_*`) |
-| `/rules deny <tool>` | Auto-reject a tool |
-| `/rules ask <tool>` | Always prompt for a tool |
-| `/rules remove <tool>` | Remove a rule |
-| `/rules` | Show current approval rules |
-
-### Media & Visualization
-
-| Command | Description |
-|---------|-------------|
-| `/image <path> [message]` | Send an image to the agent |
-| `/graph` | Render agent's execution graph as Mermaid diagram in the browser |
-| `/theme [name]` | Switch UI theme; no argument lists all themes with previews |
-
-## Key Bindings
+## Key bindings
 
 | Key | Action |
 |-----|--------|
-| **Enter** | Submit message |
-| **Shift+Enter** | Insert newline (kitty/xterm terminals) |
-| **Alt+Enter** | Insert newline (universal) |
-| **Ctrl+L** | Clear screen |
-| **Ctrl+D** | Exit |
-| **Tab** | Auto-complete commands |
+| `Enter` | Submit the message |
+| `Shift+Enter` / `Alt+Enter` / `Ctrl+J` | Insert a newline |
+| `Tab` | Complete the highlighted slash command |
+| `↑` / `↓` | Move the cursor; at the top/bottom of the input, scroll the transcript |
+| `PgUp` / `PgDn` | Scroll the transcript by a page |
+| `Esc` | Close autocomplete · clear pending attachments · cancel the in-flight stream and put your message back in the input |
+| `Ctrl+L` | Clear the message log |
+| `Ctrl+C` | Quit |
 
-> **Note on Shift+Enter**: Requires a terminal that supports the [kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/) (Kitty, Ghostty, iTerm2 with protocol enabled). Use Alt+Enter or Ctrl+J as universal alternatives.
+`Shift+Enter` depends on your terminal forwarding the modifier — Kitty, Ghostty, WezTerm, and iTerm2 (with "Report modifiers using CSI u" enabled) do; some don't. `Alt+Enter` and `Ctrl+J` always work.
 
-## One-Shot Mode
+## Human-in-the-loop approvals
 
-Send a single message without entering the REPL:
+When the agent calls a tool that's gated for approval (e.g. `edit_file`), the run pauses on the server and the TUI shows the pending call inline with a diff or argument summary. Choose `approve` / `reject` (number key or `↑`/`↓` + `Enter`); `Esc` rejects. After a reject, the agent typically retries with a different approach, and the next interrupt is handled by the same flow until the turn settles.
 
-```bash
-# Streaming output (default)
-deepagent-tui "What is the capital of France?"
+## Images
 
-# Plain text, no streaming
-deepagent-tui --no-stream "Summarize this file"
+Paste an image path (or drop a file into a terminal that yields a path) and it's attached to the next message. Multiple images stack; `Esc` clears pending attachments.
 
-# Raw JSON output
-deepagent-tui --json "List all tools"
-
-# Piped input
-echo "Explain this error" | deepagent-tui
-```
-
-## Troubleshooting
-
-### Shift+Enter not working (iTerm2)
-
-If Shift+Enter does nothing in iTerm2, you need to enable the kitty keyboard protocol:
-
-1. Open **iTerm2 → Settings → Profiles → Keys**
-2. Enable **"Report modifiers using CSI u"**
-3. Restart your terminal session
-
-This allows iTerm2 to send a distinguishable key sequence for Shift+Enter. Without it, Shift+Enter is identical to Enter at the terminal level. Alt+Enter and Ctrl+J always work as alternatives.
-
-## File Locations
+## File locations
 
 | Path | Purpose |
 |------|---------|
-| `~/.deepagent-tui/history` | Persistent command history |
-| `~/.deepagent-tui/threads.db` | Thread index (SQLite) |
-| `~/.deepagent-tui/rules.json` | Tool approval rules |
-| `.env` | Configuration |
+| `~/.deepagent-tui/threads.db` | Local thread index (SQLite). Powers `/threads` and `/resume` |
+| `~/.deepagent-tui/theme` | Persisted theme name set by `/theme` |
+| `.env` | Configuration overrides for the working directory |
+| `.workspace/history/<thread_id>.md` | Markdown transcripts written by `/export` (in the current working directory) |
+
+## Development
+
+```bash
+# Run smoke tests (no server required — bootstrap is stubbed)
+uv run pytest
+
+# Lint
+uv run ruff check
+```
+
+The smoke tests in `tests/test_tui_smoke.py` boot the app with a fake connect/discover and assert the layout mounts and basic interactions don't blow up. They run in ~0.5s and are the first thing to break if a refactor disturbs the wiring.
