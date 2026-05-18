@@ -1,6 +1,6 @@
 # deepagent-tui
 
-A terminal UI for any [LangChain Deep Agent](https://github.com/langchain-ai/deepagents) server. Connects to a LangGraph server over the SDK, streams replies as live markdown, surfaces tool calls inline, handles human-in-the-loop approvals with a diff view, and remembers threads locally so you can resume past sessions.
+A terminal UI for any [LangChain Deep Agent](https://docs.langchain.com/oss/python/deepagents/overview) server. Connects to a LangGraph server over the SDK, streams replies as live markdown, surfaces tool calls inline, handles human-in-the-loop approvals with a diff view, and remembers threads locally so you can resume past sessions.
 
 Built on [Textual](https://textual.textualize.io/).
 
