@@ -295,7 +295,7 @@ def _classify_todo(todo) -> tuple[str, str]:
 
 
 def _todos_progress_summary(statuses: list[str]) -> str:
-    """One-line progress hint for the Todos header.
+    """One-line progress hint for the Plan header.
     Empty list  → ""
     All pending → "4 todos"
     All done    → "4/4 done"
@@ -320,11 +320,11 @@ def _call_write_todos(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     todos = a.get("todos") or a.get("items") or []
     if not isinstance(todos, list):
-        return _header("Todos", "(invalid)", state=state)
+        return _header("Plan", "(invalid)", state=state)
 
     classified = [_classify_todo(t) for t in todos]
     header = _header(
-        "Todos",
+        "Plan",
         _todos_progress_summary([s for s, _ in classified]) or None,
         state=state,
     )
@@ -371,9 +371,9 @@ def _progress_summary(tc: FormattedToolCall) -> tuple[str, str]:
     if alias == "write_todos":
         items = a.get("todos") or a.get("items") or []
         if not isinstance(items, list):
-            return ("Todos", "")
+            return ("Plan", "")
         statuses = [_classify_todo(t)[0] for t in items]
-        return ("Todos", _todos_progress_summary(statuses))
+        return ("Plan", _todos_progress_summary(statuses))
     return (tc.name, _format_args(tc.args, max_total=80))
 
 
