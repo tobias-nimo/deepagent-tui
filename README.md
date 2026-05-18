@@ -4,6 +4,11 @@ A terminal UI for any [LangChain Deep Agent](https://github.com/langchain-ai/dee
 
 Built on [Textual](https://textual.textualize.io/).
 
+<!-- TODO: replace with a short demo clip (asciinema .gif or .mp4) -->
+<p align="center">
+  <img src="assets/demo.gif" alt="deepagent-tui demo" width="720">
+</p>
+
 ## Quick start
 
 ```bash
@@ -18,6 +23,13 @@ uv run deepagent-tui
 ```
 
 The TUI connects to `LANGGRAPH_URL` (default `http://localhost:2024`), discovers an assistant, opens a fresh thread, and drops you at a prompt.
+
+## Documentation
+
+Full guides live in [`docs/`](docs/README.md):
+
+- [Configuration](docs/configuration.md) · [Commands](docs/commands.md) · [HITL approvals](docs/hitl.md)
+- [Threads](docs/threads.md) · [Skills](docs/skills.md) · [Architecture](docs/architecture.md)
 
 ## Configuration
 
