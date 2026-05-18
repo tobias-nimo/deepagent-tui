@@ -97,13 +97,12 @@ class StatusBar(Static):
         from deepagent_tui.utils.cost import format_cost, format_tokens
 
         s = self._session
-        graph = s.graph_id or "—"
         model = s.model or "—"
         toks = f"{format_tokens(s.input_tokens)}↑ {format_tokens(s.output_tokens)}↓"
         cost = format_cost(s.total_cost)
         status_tag = f" [{s.status}]" if s.status != "idle" else ""
         self.update(
-            f" {graph} │ {model} │ {toks} │ {cost}{status_tag}"
+            f" {model} │ {toks} │ {cost}{status_tag}"
         )
 
 

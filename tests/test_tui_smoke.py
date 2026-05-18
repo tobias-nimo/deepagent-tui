@@ -81,7 +81,7 @@ async def test_status_bar_refresh_uses_session_state() -> None:
         app.session.output_tokens = 34
         sb = app.query_one(StatusBar)
         sb._refresh()  # would raise if any rendering helper broke
-        assert "test-graph" in str(sb.content)
+        assert "12" in str(sb.content)
 
 
 async def test_connect_failure_does_not_crash_app(monkeypatch: pytest.MonkeyPatch) -> None:
