@@ -40,7 +40,7 @@ from deepagent_tui.handlers.tools import (
 from deepagent_tui.session import Session
 from deepagent_tui.storage.db import upsert_thread
 from deepagent_tui.tui.inline_approval import InlineApproval
-from deepagent_tui.tui.screens import HelpScreen, PickerItem, PickerScreen
+from deepagent_tui.tui.screens import CommandsScreen, HelpScreen, PickerItem, PickerScreen
 from deepagent_tui.ui.markdown import render_markdown
 
 _DEBUG = os.environ.get("DEEPAGENT_DEBUG") == "1"
@@ -466,6 +466,7 @@ class DeepAgentTUI(App):
         self.session.picker = self._tui_pick
         self.session.replay = self._replay_thread
         self.session.show_help = self._tui_show_help
+        self.session.show_commands = self._tui_show_commands
         welcome = self.query_one("#welcome", WelcomeBanner)
         welcome.set_connecting(settings.langgraph_url)
 
@@ -1169,6 +1170,12 @@ class DeepAgentTUI(App):
     async def _tui_show_help(self) -> None:
         """Push the full-screen help view. Called from the /help command worker."""
         await self.push_screen_wait(HelpScreen())
+
+    async def _tui_show_commands(self) -> None:
+        """Push the full-screen commands view. Called from the /commands command worker."""
+        from deepagent_tui.commands import builtin_commands
+
+        await self.push_screen_wait(CommandsScreen(builtin_commands()))
 
     def action_clear_log(self) -> None:
         container = self.query_one("#messages", Container)

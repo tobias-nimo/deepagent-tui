@@ -5,10 +5,10 @@ All commands start with `/` and have tab-completion. While typing a slash comman
 ## Session
 
 ### `/commands`
-Lists built-in commands as a table with names and descriptions. (Dynamic skill commands appear via `/skills` instead.)
+Opens a full-screen list of built-in commands (`CommandsScreen` in `tui/screens.py`). The screen ends with a short note explaining that skills are invoked as `/<skill-name>` and pointing to `/skills` to see what the current agent exposes. Esc / Ctrl+C / q closes it; up/down/PageUp/PageDown scroll.
 
 ### `/help`
-Opens a full-screen help view (`HelpScreen` in `tui/screens.py`) with keyboard shortcuts and tips. Esc / Ctrl+C / q closes it; up/down/PageUp/PageDown scroll. Unlike `/commands`, this is a modal screen rather than inline output — same pattern as `/resume` and `/fork`.
+Opens a full-screen help view (`HelpScreen` in `tui/screens.py`) with keyboard shortcuts and tips. Esc / Ctrl+C / q closes it; up/down/PageUp/PageDown scroll. Same modal-screen pattern as `/commands`, `/resume`, and `/fork`.
 
 ### `/status`
 Shows the current session at a glance:

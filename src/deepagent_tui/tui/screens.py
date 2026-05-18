@@ -380,3 +380,118 @@ class HelpScreen(Screen[None]):
         for key, desc in rows:
             table.add_row(key, desc)
         return table
+
+
+class CommandsScreen(Screen[None]):
+    """Full-screen list of available slash commands.
+
+    Static content (no selection); dismissed with Esc / Ctrl+C / q.
+    """
+
+    DEFAULT_CSS = """
+    CommandsScreen { background: $background; layout: vertical; }
+
+    #commands-root { padding: 1 2; height: 1fr; background: $background; }
+
+    #commands-title {
+        height: auto;
+        color: $text;
+        text-style: bold;
+        padding: 0 0 1 0;
+    }
+
+    #commands-body {
+        height: 1fr;
+        background: $background;
+        scrollbar-size: 0 0;
+        padding: 0;
+    }
+
+    #commands-body Static {
+        height: auto;
+        background: $background;
+        color: $text;
+        padding: 0 0 1 0;
+    }
+
+    #commands-footer {
+        height: auto;
+        color: $text-muted;
+        padding: 0;
+    }
+    """
+
+    def __init__(self, builtins: dict[str, str]) -> None:
+        super().__init__()
+        self._builtins = builtins
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="commands-root"):
+            yield Static("", id="commands-title")
+            with VerticalScroll(id="commands-body"):
+                if self._builtins:
+                    yield Static(self._section("Built-in"))
+                    yield Static(self._table(self._rows(self._builtins)))
+                else:
+                    yield Static(Text("No commands registered.", style="dim"))
+                yield Static(self._section("Skills"))
+                yield Static(self._skills_note())
+            yield Static("Esc to close", id="commands-footer")
+
+    async def on_mount(self) -> None:
+        body = self.query_one("#commands-body", VerticalScroll)
+        body.can_focus = False
+        self.can_focus = True
+        self.query_one("#commands-title", Static).update(Text("Commands", style="bold"))
+        self.set_focus(None)
+
+    async def on_key(self, event: events.Key) -> None:
+        if event.key in ("escape", "ctrl+c", "q"):
+            event.stop()
+            event.prevent_default()
+            self.dismiss(None)
+            return
+        if event.key in ("up", "k"):
+            self.query_one("#commands-body", VerticalScroll).scroll_up(animate=False)
+            return
+        if event.key in ("down", "j"):
+            self.query_one("#commands-body", VerticalScroll).scroll_down(animate=False)
+            return
+        if event.key == "pageup":
+            self.query_one("#commands-body", VerticalScroll).scroll_page_up(animate=False)
+            return
+        if event.key == "pagedown":
+            self.query_one("#commands-body", VerticalScroll).scroll_page_down(animate=False)
+            return
+
+    @staticmethod
+    def _rows(cmds: dict[str, str]) -> list[tuple[str, str]]:
+        return [(f"/{name}", desc or "—") for name, desc in sorted(cmds.items())]
+
+    @staticmethod
+    def _section(title: str) -> Text:
+        return Text(title, style=f"bold {_theme.ACCENT_COLOR}")
+
+    @staticmethod
+    def _skills_note() -> Text:
+        accent = _theme.current_theme().accent
+        note = Text(style="dim")
+        note.append(
+            "Skills are agent-specific capabilities exposed by the connected server. "
+            "Invoke one as "
+        )
+        note.append("/<skill-name>", style=f"bold {accent}")
+        note.append(" (with optional arguments). Run ")
+        note.append("/skills", style=f"bold {accent}")
+        note.append(" to see what the current agent can do.")
+        return note
+
+    @staticmethod
+    def _table(rows: list[tuple[str, str]]) -> Table:
+        width = max(len(k) for k, _ in rows) + 1
+        table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
+        table.add_column("name", style=f"bold {_theme.ACCENT_COLOR}", min_width=width)
+        table.add_column("desc", style="dim", overflow="fold")
+        for key, desc in rows:
+            table.add_row(key, desc)
+        return table

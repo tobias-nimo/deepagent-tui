@@ -4,32 +4,16 @@ from __future__ import annotations
 
 import sys
 
-from rich.table import Table
-
-import deepagent_tui.ui.theme as _theme
-from deepagent_tui.commands import builtin_commands, command
-from deepagent_tui.ui.renderer import console, render_info
+from deepagent_tui.commands import command
+from deepagent_tui.ui.renderer import console, render_error, render_info
 
 
 @command("commands", "Show available commands")
 async def cmd_commands(client, session, args: str) -> None:
-    cmds = builtin_commands()
-    if not cmds:
-        render_info("No commands registered.")
+    if session.show_commands is None:
+        render_error("Commands screen is not available outside the TUI.")
         return
-
-    name_width = max((len(name) + 1 for name in cmds), default=10)
-
-    table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
-    table.add_column("Command", style=f"bold {_theme.ACCENT_COLOR}", min_width=name_width)
-    table.add_column("Description", style="dim", overflow="fold")
-
-    for name, desc in sorted(cmds.items()):
-        table.add_row(f"/{name}", desc or "—")
-
-    console.print()
-    console.print(table)
-    console.print()
+    await session.show_commands()
 
 
 @command("clear", "Clear the terminal screen")
