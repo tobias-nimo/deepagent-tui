@@ -30,15 +30,3 @@ Full guides live in [`docs/`](docs/README.md):
 
 - **Using it** — [Configuration](docs/configuration.md) · [Commands](docs/commands.md) · [Key bindings](docs/keybindings.md) · [Themes](docs/themes.md) · [Images](docs/images.md) · [HITL approvals](docs/hitl.md) · [Threads](docs/threads.md) · [Skills](docs/skills.md) · [Troubleshooting](docs/troubleshooting.md)
 - **Hacking on it** — [Architecture](docs/architecture.md) · [Tool widgets](docs/tool-widgets.md) · [Testing](docs/testing.md)
-
-## Development
-
-```bash
-# Run smoke tests (no server required — bootstrap is stubbed)
-uv run pytest
-
-# Lint
-uv run ruff check
-```
-
-The smoke tests in `tests/test_tui_smoke.py` boot the app with a fake connect/discover and assert the layout mounts and basic interactions don't blow up. They run in ~0.5s and are the first thing to break if a refactor disturbs the wiring.
