@@ -37,7 +37,7 @@ Quits the TUI. Equivalent to `Ctrl+C`.
 Switching threads resets token/cost counters and re-renders past messages in place (no banner).
 
 ### `/fork`
-Opens a picker of up to the last 10 distinct user messages from the current thread's history. Selecting one creates a new thread pre-loaded with messages up to (but not including) the next user message — i.e. the chosen user turn and the assistant turn that responded to it. The session switches to the new thread and replays.
+Opens a picker of every distinct user message from the current thread's history. Selecting one creates a new thread pre-loaded with messages up to (but not including) the next user message — i.e. the chosen user turn and the assistant turn that responded to it. The session switches to the new thread and replays.
 
 Forking requires the original thread to have at least one completed run (the server needs an assigned `graph_id` to copy state from).
 

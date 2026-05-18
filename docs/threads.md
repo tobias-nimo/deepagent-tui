@@ -62,7 +62,7 @@ Resolves in this order:
 Branches the current thread from an earlier user message into a new thread.
 
 1. Fetches the thread's checkpoint history (`get_thread_history`)
-2. Extracts up to the last 10 distinct user messages
+2. Extracts every distinct user message
 3. Opens a picker; the chosen message becomes the branch point
 4. Creates a new thread pre-loaded with messages from the start up to (but not including) the **next** user message — i.e. the chosen user turn plus the assistant turn that responded to it (tool calls and results included)
 5. Switches the session to the new thread and replays

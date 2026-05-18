@@ -74,9 +74,9 @@ async def cmd_fork(client, session, args: str) -> None:
         render_info("No user messages found in history.")
         return
 
-    # Sort by message position in thread, then keep last 10
+    # Sort by message position in thread — show every user turn so the
+    # user can fork from any earlier point (picker is filterable).
     unique_checkpoints.sort(key=lambda x: x[0])
-    unique_checkpoints = unique_checkpoints[-10:]
 
     items = [
         PickerItem(
