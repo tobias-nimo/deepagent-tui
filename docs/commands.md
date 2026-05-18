@@ -58,7 +58,7 @@ The welcome banner repaints after any command, so theme changes take effect imme
 Skills are reusable agent capabilities exposed by the connected server. See [skills.md](skills.md) for the discovery rules.
 
 ### `/skills`
-Lists the currently-registered skill commands as a table.
+Opens a full-screen picker of the currently-registered skills (filterable by typing — matches both name and description). Selecting one fills the chat input with `/<skill-name> ` so you can add arguments and submit.
 
 ### `/skills refresh`
 Re-fetches `skills_metadata` from the current thread's state and registers any skills found. Useful when the agent loads skills lazily (the first message often triggers the load, after which `/skills refresh` will surface them).

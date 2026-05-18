@@ -1,15 +1,13 @@
-"""The /skills command — list discovered skills from the connected agent."""
+"""The /skills command — pick a discovered skill from a searchable list."""
 
 from __future__ import annotations
 
-from rich.table import Table
-
-import deepagent_tui.ui.theme as _theme
 from deepagent_tui.commands import command, dynamic_commands
-from deepagent_tui.ui.renderer import console, render_info
+from deepagent_tui.tui.screens import PickerItem
+from deepagent_tui.ui.renderer import render_info
 
 
-@command("skills", "List available skills from the connected agent")
+@command("skills", "Browse available skills from the connected agent")
 async def cmd_skills(client, session, args: str) -> None:
     # /skills refresh — re-fetch skills_metadata from thread state
     if args.strip().lower() == "refresh":
@@ -37,23 +35,23 @@ async def cmd_skills(client, session, args: str) -> None:
             render_info(f"Could not fetch skills: {e}")
         return
 
-    # Show only registered skill commands (not general tools)
     skills = dict(dynamic_commands())
-
     if not skills:
         render_info("No skills discovered yet.")
         render_info("Send a message first, then use /skills refresh to fetch from agent state.")
         return
 
-    name_width = max((len(name) + 1 for name in skills), default=10)
-    table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
-    table.add_column("Skill", style=f"bold {_theme.ACCENT_COLOR}", min_width=name_width)
-    table.add_column("Description", style="dim", overflow="fold")
+    picker = session.picker
+    items = [
+        PickerItem(title=f"/{name}", subtitle=desc or "—", value=name)
+        for name, desc in sorted(skills.items())
+    ]
+    chosen = await picker(items, "Select skill")
+    if chosen is None:
+        return
 
-    for name, desc in sorted(skills.items()):
-        table.add_row(f"/{name}", desc or "—")
-
-    console.print()
-    console.print(table)
-    console.print()
-    render_info(f"{len(skills)} skill(s). Use /<skill-name> [question] to invoke.")
+    fill = session.set_input
+    if fill is None:
+        render_info(f"Use /{chosen} to invoke this skill.")
+        return
+    fill(f"/{chosen} ")

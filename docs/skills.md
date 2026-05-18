@@ -42,16 +42,9 @@ Skill invocations go through the **same stream worker** as regular messages, not
 
 ## Listing — `/skills`
 
-Tabular list of currently-registered skills:
+Opens a full-screen picker (`PickerScreen` in `tui/screens.py`, same widget as `/resume` and `/fork`) listing the currently-registered skills. Type to filter by name or description; ↑↓ to move, Enter to select, Esc to cancel. Selecting a skill fills the chat input with `/<skill-name> ` and focuses it — you can then add arguments and submit, or just press Enter to invoke with no args.
 
-```
-/foo        — Foo skill description
-/bar        — Bar skill description
-```
-
-Followed by a hint line: `N skill(s). Use /<skill-name> [question] to invoke.`
-
-If nothing has been discovered yet, suggests sending a message and then trying `/skills refresh`.
+If nothing has been discovered yet, prints a hint suggesting you send a message and then try `/skills refresh`.
 
 ## Name collisions
 

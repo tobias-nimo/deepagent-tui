@@ -474,6 +474,7 @@ class DeepAgentTUI(App):
         self.session.show_help = self._tui_show_help
         self.session.show_commands = self._tui_show_commands
         self.session.show_status = self._tui_show_status
+        self.session.set_input = self._tui_set_input
         welcome = self.query_one("#welcome", WelcomeBanner)
         welcome.set_connecting(settings.langgraph_url)
 
@@ -1202,6 +1203,12 @@ class DeepAgentTUI(App):
             ("Cost", format_cost(s.total_cost)),
         ]
         await self.push_screen_wait(StatusScreen(connection, usage))
+
+    def _tui_set_input(self, text: str) -> None:
+        """Fill the chat input bar with `text` and focus it. Used by pickers
+        (e.g. /skills) that hand the user a prepared command to edit and send."""
+        prompt = self._set_prompt_text(text)
+        prompt.focus()
 
     def action_clear_log(self) -> None:
         container = self.query_one("#messages", Container)

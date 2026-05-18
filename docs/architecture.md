@@ -13,7 +13,7 @@ src/deepagent_tui/
 ├── session.py         # Session dataclass — mutable per-run state
 ├── tui/
 │   ├── app.py         # DeepAgentTUI Textual app — the main UI
-│   ├── screens.py     # PickerScreen (/resume, /fork), HelpScreen (/help), CommandsScreen (/commands), StatusScreen (/status)
+│   ├── screens.py     # PickerScreen (/resume, /fork, /skills), HelpScreen (/help), CommandsScreen (/commands), StatusScreen (/status)
 │   └── inline_approval.py  # InlineApproval widget for HITL prompts
 ├── ui/
 │   ├── renderer.py    # Shared rich Console + render_info/render_error

@@ -266,7 +266,11 @@ class PickerScreen(Screen[Any]):
         container = self.query_one("#picker-rows", VerticalScroll)
         children = list(container.children)
         if 0 <= self._selected < len(children):
-            container.scroll_to_widget(children[self._selected], animate=False)
+            widget = children[self._selected]
+            # `_rebuild_rows` just remounted everything; widget regions
+            # aren't computed until after the next refresh, so scrolling now
+            # would be a no-op. Defer to the post-layout phase.
+            self.call_after_refresh(container.scroll_to_widget, widget, animate=False)
 
 
 class HelpScreen(Screen[None]):
