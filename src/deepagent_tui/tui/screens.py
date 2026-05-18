@@ -238,7 +238,7 @@ class PickerScreen(Screen[Any]):
 
         if not self._filtered:
             container.mount(
-                Static(Text("No matches.", style="dim"), classes="picker-empty")
+                Static(Text("No matches", style="dim"), classes="picker-empty")
             )
             return
 
