@@ -31,7 +31,7 @@ Quits the TUI. Equivalent to `Ctrl+C`.
 
 ### `/resume [thread_id]`
 
-- **No argument** — opens a picker showing up to the 10 most recent non-empty threads (filterable by typing). Selecting one switches the session to that thread, fetches its state from the server, and replays the conversation inline.
+- **No argument** — opens a picker listing every non-empty thread in the local DB (capped at `MAX_THREADS = 20`, filterable by typing). Selecting one switches the session to that thread, fetches its state from the server, and replays the conversation inline.
 - **Full or partial id** — `/resume abc12` resolves to a thread whose id starts with `abc12`. Ambiguous prefixes are rejected with an error. If the id isn't in the local DB, the server is queried directly as a fallback.
 
 Switching threads resets token/cost counters and re-renders past messages in place (no banner).

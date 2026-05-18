@@ -9,6 +9,11 @@ import aiosqlite
 DB_DIR = Path.home() / ".deepagent-tui"
 DB_PATH = DB_DIR / "threads.db"
 
+# Cap the local index at the N most-recently-updated threads. Every
+# `upsert_thread` trims older rows past this limit so the DB stays bounded
+# and `/resume` never balloons with stale entries.
+MAX_THREADS = 20
+
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS threads (
     id           TEXT PRIMARY KEY,
@@ -73,6 +78,14 @@ async def upsert_thread(
                     message_count or 0,
                 ),
             )
+        # Enforce the retention cap after every write: keep the MAX_THREADS
+        # most-recently-updated rows, drop the rest. Cheap to run even when
+        # the row count is already within the cap.
+        await db.execute(
+            "DELETE FROM threads WHERE id NOT IN "
+            "(SELECT id FROM threads ORDER BY updated_at DESC, id DESC LIMIT ?)",
+            (MAX_THREADS,),
+        )
         await db.commit()
     finally:
         await db.close()

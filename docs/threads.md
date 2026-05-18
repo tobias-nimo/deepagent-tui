@@ -26,11 +26,15 @@ Rows are written by `upsert_thread()` in three places:
 
 The actual conversation content (messages, checkpoints, tool calls) lives on the LangGraph server; this DB is only an index.
 
+### Retention
+
+The DB is capped at `MAX_THREADS = 20` rows (defined in `storage/db.py`). Every `upsert_thread` trims older rows past that limit by `updated_at DESC`, so the oldest threads fall off automatically as new ones come in. The cap only affects the local index — threads remain on the LangGraph server and can still be resumed by id with `/resume <thread_id>`.
+
 ## Resuming — `/resume`
 
 ### `/resume` with no argument
 
-Opens a picker showing **up to 10** of the most recent **non-empty** threads (filterable with type-to-search). The list comes from the local DB, capped to 200 candidates and then to 10 visible rows.
+Opens a picker listing every **non-empty** thread in the local DB (up to the `MAX_THREADS` retention cap), filterable with type-to-search.
 
 Each row shows:
 
