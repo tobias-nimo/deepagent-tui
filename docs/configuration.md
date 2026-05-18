@@ -35,12 +35,9 @@ If `THREAD_ID` is set, the TUI attaches to that thread (the server is not asked 
 
 | Path | Purpose |
 |------|---------|
-| `~/.deepagent-tui/threads.db` | SQLite thread index (powers `/threads`, `/resume`) |
+| `~/.deepagent-tui/threads.db` | SQLite thread index (powers `/resume`) |
 | `~/.deepagent-tui/theme` | Persisted theme name written by `/theme` |
 | `.env` | Per-directory configuration overrides |
-| `<workspace>/history/<thread_id>.md` | Markdown transcripts written by `/export` |
-
-`<workspace>` for `/export` is derived from the connected agent's skill paths when available, otherwise it falls back to the current working directory. See [threads.md](threads.md#export) for the resolution rules.
 
 ## Theme precedence
 

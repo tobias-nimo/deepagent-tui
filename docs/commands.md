@@ -28,9 +28,6 @@ Quits the TUI. Equivalent to `Ctrl+C`.
 
 ## History
 
-### `/threads`
-Tabular list of the 10 most recent threads from the local index: id, graph, message count, last message preview, and timestamp. The current thread is marked with `*` and bold green.
-
 ### `/resume [thread_id]`
 
 - **No argument** — opens a picker showing up to the 10 most recent non-empty threads (filterable by typing). Selecting one switches the session to that thread, fetches its state from the server, and replays the conversation inline.
@@ -43,11 +40,8 @@ Opens a picker of up to the last 10 distinct user messages from the current thre
 
 Forking requires the original thread to have at least one completed run (the server needs an assigned `graph_id` to copy state from).
 
-### `/export`
-Writes the conversation as markdown to `<workspace>/history/<thread_id>.md`. User messages are prefixed with `❯`, assistant messages are rendered as-is. `<workspace>` is the agent's skill workspace when discoverable, otherwise the current working directory.
-
 ### `/copy`
-Copies the same transcript to the system clipboard. Uses `pbcopy` on macOS, `clip` on Windows, and tries `wl-copy` → `xsel` → `xclip` on Linux. Missing tools produce a helpful error.
+Copies the conversation as markdown to the system clipboard. User messages are prefixed with `❯`, assistant messages are rendered as-is. Uses `pbcopy` on macOS, `clip` on Windows, and tries `wl-copy` → `xsel` → `xclip` on Linux. Missing tools produce a helpful error.
 
 ## Appearance
 

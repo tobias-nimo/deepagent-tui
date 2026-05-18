@@ -1,11 +1,10 @@
-"""The /export and /copy commands — save or copy a conversation transcript."""
+"""The /copy command — copy a conversation transcript to the clipboard."""
 
 from __future__ import annotations
 
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 from deepagent_tui.commands import command
 from deepagent_tui.ui.renderer import render_error, render_info
@@ -88,25 +87,6 @@ def _copy_to_clipboard(text: str) -> bool:
     return False
 
 
-async def _resolve_workspace(client, session) -> Path:
-    if session.workspace_root:
-        return Path(session.workspace_root)
-    try:
-        skills = await client.get_skills_from_state(session.thread_id)
-        for skill in skills:
-            path = skill.get("path", "")
-            if path:
-                try:
-                    root = Path(path).parents[3]
-                    session.workspace_root = str(root)
-                    return root
-                except IndexError:
-                    pass
-    except Exception:
-        pass
-    return Path.cwd()
-
-
 async def _fetch_messages(client, session) -> list[dict] | None:
     if not session.thread_id:
         render_error("No active thread.")
@@ -118,24 +98,9 @@ async def _fetch_messages(client, session) -> list[dict] | None:
         return None
     messages = state.get("values", {}).get("messages", [])
     if not messages:
-        render_info("No messages to export.")
+        render_info("No messages to copy.")
         return None
     return messages
-
-
-@command("export", "Export conversation to .workspace/history/<thread_id>.md")
-async def cmd_export(client, session, args: str) -> None:
-    messages = await _fetch_messages(client, session)
-    if messages is None:
-        return
-
-    transcript = _build_transcript(messages)
-
-    workspace = await _resolve_workspace(client, session)
-    path = workspace / "history" / f"{session.thread_id}.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(transcript)
-    render_info(f"Conversation exported to {path}")
 
 
 @command("copy", "Copy conversation to clipboard")

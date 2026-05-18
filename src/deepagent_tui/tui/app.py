@@ -847,7 +847,7 @@ class DeepAgentTUI(App):
             self.action_clear_log()
 
         # Repaint the welcome banner after any command: /theme changes the
-        # gradient, and other commands (e.g. /export) may set workspace_root.
+        # gradient, and other commands may update session state shown there.
         try:
             self.query_one("#welcome", WelcomeBanner).refresh_content()
         except Exception:

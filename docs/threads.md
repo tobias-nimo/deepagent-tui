@@ -1,6 +1,6 @@
 # Threads
 
-How conversations are persisted, listed, resumed, forked, and exported.
+How conversations are persisted, resumed, forked, and copied.
 
 ## Storage
 
@@ -25,18 +25,6 @@ Rows are written by `upsert_thread()` in three places:
 3. After `/new` and `/fork` — inserts the new thread
 
 The actual conversation content (messages, checkpoints, tool calls) lives on the LangGraph server; this DB is only an index.
-
-## Listing — `/threads`
-
-Prints the 10 most recent threads as a table:
-
-| Column | Notes |
-|--------|-------|
-| Thread ID | Truncated to 12 chars; the current thread is prefixed with `*` and bold green |
-| Graph | The `graph_id` column |
-| Msgs | Local message_count |
-| Last Message | First 35 chars of `last_message` |
-| Updated | SQLite `datetime('now')` (UTC) |
 
 ## Resuming — `/resume`
 
@@ -77,23 +65,15 @@ Branches the current thread from an earlier user message into a new thread.
 
 Forking needs the original thread to have completed at least one run — the server requires an assigned `graph_id` on the source thread to copy state from. If it doesn't, the command reports `This thread has no history to fork from`.
 
-## Exporting — `/export`
+## Copying — `/copy`
 
-Writes the current thread's transcript to `<workspace>/history/<thread_id>.md`. The workspace is resolved like this:
-
-1. `session.workspace_root` if already set (derived from a previous skills load)
-2. The fourth parent of any skill path — i.e. for a skill at `/proj/.deepagent/skills/foo/SKILL.md`, the workspace is `/proj`
-3. The current working directory as a final fallback
-
-The transcript format is plain markdown:
+Writes the current thread's transcript to the system clipboard as plain markdown:
 
 - User messages: `❯  <text>`
 - Assistant messages: rendered as-is (markdown preserved)
 - Tool calls and results are not included
 
-## Copying — `/copy`
-
-Same transcript as `/export`, but written to the system clipboard. Per-platform commands:
+Per-platform commands:
 
 - macOS — `pbcopy`
 - Windows — `clip`
@@ -105,8 +85,7 @@ If none are available, the command reports the install hint.
 ## Implementation pointers
 
 - `src/deepagent_tui/storage/db.py` — SQLite schema + helpers
-- `src/deepagent_tui/commands/threads.py` — `/threads`
 - `src/deepagent_tui/commands/resume.py` — `/resume` and `_switch_thread`
 - `src/deepagent_tui/commands/fork.py` — `/fork`
-- `src/deepagent_tui/commands/export.py` — `/export` and `/copy`
+- `src/deepagent_tui/commands/copy.py` — `/copy`
 - `src/deepagent_tui/commands/new.py` — `/new`

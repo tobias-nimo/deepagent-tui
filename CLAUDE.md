@@ -20,7 +20,7 @@ uv run ruff check                    # lint (line-length 100, py312, rules: E/F/
 The TUI is a client only — it needs a LangGraph Deep Agent server reachable at `LANGGRAPH_URL` (default `http://localhost:2024`). Start one in another terminal with `uv run langgraph dev --no-browser` from the agent project. See `docs/configuration.md` for env vars (`LANGGRAPH_URL`, `GRAPH_ID`, `THREAD_ID`, `LANGSMITH_API_KEY`, `DEEPAGENT_THEME`). Per-directory `.env` is loaded automatically; parent dirs are not searched.
 
 State written outside the repo:
-- `~/.deepagent-tui/threads.db` — SQLite thread index (`/threads`, `/resume`)
+- `~/.deepagent-tui/threads.db` — SQLite thread index (`/resume`)
 - `~/.deepagent-tui/theme` — persisted theme (overrides `DEEPAGENT_THEME` on next launch)
 
 ## Architecture (the parts that span files)

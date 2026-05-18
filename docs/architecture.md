@@ -24,10 +24,9 @@ src/deepagent_tui/
 │   ├── __init__.py    # @command registry + dispatch
 │   ├── builtins.py    # /help /clear /exit /status
 │   ├── new.py         # /new
-│   ├── threads.py     # /threads
 │   ├── resume.py      # /resume
 │   ├── fork.py        # /fork
-│   ├── export.py      # /export and /copy
+│   ├── copy.py        # /copy
 │   ├── theme.py       # /theme
 │   └── skills.py      # /skills and /skills refresh
 ├── handlers/

@@ -46,9 +46,9 @@ A pasted/dropped path is left as text instead of becoming a chip. Checks:
 
 When dragging from Finder/Files, your terminal needs to paste the path; if it doesn't, paste the path manually.
 
-## Thread doesn't appear in `/threads`
+## Thread doesn't appear in `/resume`
 
-`/threads` reads from `~/.deepagent-tui/threads.db` — the local index. A thread is missing when:
+`/resume` reads from `~/.deepagent-tui/threads.db` — the local index. A thread is missing when:
 
 - It was created on a different machine
 - The local index was deleted

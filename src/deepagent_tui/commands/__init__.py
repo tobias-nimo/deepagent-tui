@@ -100,11 +100,10 @@ async def dispatch(client: "AgentClient", session: "Session", text: str) -> bool
 # decorator and registry are defined before the modules try to use them.
 from deepagent_tui.commands import (  # noqa: E402, F401
     builtins,
-    export,
+    copy,
     fork,
     new,
     resume,
     skills,
     theme,
-    threads,
 )
