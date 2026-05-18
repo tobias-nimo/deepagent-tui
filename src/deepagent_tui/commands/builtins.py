@@ -29,17 +29,7 @@ async def cmd_exit(client, session, args: str) -> None:
 
 @command("status", "Show connection and session info")
 async def cmd_status(client, session, args: str) -> None:
-    from deepagent_tui.config import settings
-    from deepagent_tui.utils.cost import format_cost, format_tokens
-
-    render_info(f"Server:    {settings.langgraph_url}")
-    render_info(f"Graph:     {session.graph_id or 'not connected'}")
-    render_info(f"Assistant: {session.assistant_id or 'not connected'}")
-    render_info(f"Thread:    {session.thread_id or 'none'}")
-    render_info(f"Model:     {session.model or 'unknown'}")
-    render_info(f"Status:    {session.status}")
-    in_tok = format_tokens(session.input_tokens)
-    out_tok = format_tokens(session.output_tokens)
-    cost = format_cost(session.total_cost)
-    render_info(f"Tokens:    {in_tok} in / {out_tok} out")
-    render_info(f"Cost:      {cost}")
+    if session.show_status is None:
+        render_error("Status screen is not available outside the TUI.")
+        return
+    await session.show_status()

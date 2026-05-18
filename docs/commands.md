@@ -11,14 +11,12 @@ Opens a full-screen list of built-in commands (`CommandsScreen` in `tui/screens.
 Opens a full-screen help view (`HelpScreen` in `tui/screens.py`) with keyboard shortcuts and tips. Esc / Ctrl+C / q closes it; up/down/PageUp/PageDown scroll. Same modal-screen pattern as `/commands`, `/resume`, and `/fork`.
 
 ### `/status`
-Shows the current session at a glance:
+Opens a full-screen view (`StatusScreen` in `tui/screens.py`) of the current session, split into two sections:
 
-- Server URL, graph id, assistant id, thread id
-- Model name (populated once the first response streams in)
-- Current status: `idle` / `streaming` / `interrupted`
-- Cumulative input/output tokens and estimated cost
+- **Connection** — server URL, graph id, assistant id, thread id, model name (populated once the first response streams in), current status (`idle` / `streaming` / `interrupted`).
+- **Usage** — cumulative input/output tokens and estimated cost.
 
-Cost is computed from a built-in pricing table for known models (see `utils/cost.py`); unknown models show `$0.0000`.
+Esc / Ctrl+C / q closes it; up/down/PageUp/PageDown scroll. Cost is computed from a built-in pricing table for known models (see `utils/cost.py`); unknown models show `$0.0000`.
 
 ### `/new`
 Wipes the message log, asks the server for a fresh thread, and resets the session counters (tokens, cost, local messages). The new thread is recorded in the local index.

@@ -22,6 +22,7 @@ class Session:
     replay: Any = None  # async (messages: list[dict]) -> None — set by TUI to clear and re-render past messages on /resume
     show_help: Any = None  # async () -> None — set by TUI; pushes the help screen
     show_commands: Any = None  # async () -> None — set by TUI; pushes the commands screen
+    show_status: Any = None  # async () -> None — set by TUI; pushes the status screen
     discovered_tools: dict[str, str] = field(default_factory=dict)  # name -> description
     discovered_skills_from_state: bool = False  # True once skills_metadata fetched from thread
     workspace_root: str | None = None  # derived from skill paths on first skills load

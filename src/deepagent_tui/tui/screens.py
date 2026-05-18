@@ -495,3 +495,102 @@ class CommandsScreen(Screen[None]):
         for key, desc in rows:
             table.add_row(key, desc)
         return table
+
+
+class StatusScreen(Screen[None]):
+    """Full-screen connection and session info.
+
+    Static content (no selection); dismissed with Esc / Ctrl+C / q.
+    """
+
+    DEFAULT_CSS = """
+    StatusScreen { background: $background; layout: vertical; }
+
+    #status-root { padding: 1 2; height: 1fr; background: $background; }
+
+    #status-title {
+        height: auto;
+        color: $text;
+        text-style: bold;
+        padding: 0 0 1 0;
+    }
+
+    #status-body {
+        height: 1fr;
+        background: $background;
+        scrollbar-size: 0 0;
+        padding: 0;
+    }
+
+    #status-body Static {
+        height: auto;
+        background: $background;
+        color: $text;
+        padding: 0 0 1 0;
+    }
+
+    #status-footer {
+        height: auto;
+        color: $text-muted;
+        padding: 0;
+    }
+    """
+
+    def __init__(
+        self,
+        connection: list[tuple[str, str]],
+        usage: list[tuple[str, str]],
+    ) -> None:
+        super().__init__()
+        self._connection = connection
+        self._usage = usage
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="status-root"):
+            yield Static("", id="status-title")
+            with VerticalScroll(id="status-body"):
+                yield Static(self._section("Connection"))
+                yield Static(self._table(self._connection))
+                yield Static(self._section("Usage"))
+                yield Static(self._table(self._usage))
+            yield Static("Esc to close", id="status-footer")
+
+    async def on_mount(self) -> None:
+        body = self.query_one("#status-body", VerticalScroll)
+        body.can_focus = False
+        self.can_focus = True
+        self.query_one("#status-title", Static).update(Text("Status", style="bold"))
+        self.set_focus(None)
+
+    async def on_key(self, event: events.Key) -> None:
+        if event.key in ("escape", "ctrl+c", "q"):
+            event.stop()
+            event.prevent_default()
+            self.dismiss(None)
+            return
+        if event.key in ("up", "k"):
+            self.query_one("#status-body", VerticalScroll).scroll_up(animate=False)
+            return
+        if event.key in ("down", "j"):
+            self.query_one("#status-body", VerticalScroll).scroll_down(animate=False)
+            return
+        if event.key == "pageup":
+            self.query_one("#status-body", VerticalScroll).scroll_page_up(animate=False)
+            return
+        if event.key == "pagedown":
+            self.query_one("#status-body", VerticalScroll).scroll_page_down(animate=False)
+            return
+
+    @staticmethod
+    def _section(title: str) -> Text:
+        return Text(title, style=f"bold {_theme.ACCENT_COLOR}")
+
+    @staticmethod
+    def _table(rows: list[tuple[str, str]]) -> Table:
+        width = max(len(k) for k, _ in rows) + 1
+        table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
+        table.add_column("label", style=f"bold {_theme.ACCENT_COLOR}", min_width=width)
+        table.add_column("value", style="dim", overflow="fold")
+        for key, value in rows:
+            table.add_row(key, value)
+        return table

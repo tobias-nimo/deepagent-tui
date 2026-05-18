@@ -40,7 +40,13 @@ from deepagent_tui.handlers.tools import (
 from deepagent_tui.session import Session
 from deepagent_tui.storage.db import upsert_thread
 from deepagent_tui.tui.inline_approval import InlineApproval
-from deepagent_tui.tui.screens import CommandsScreen, HelpScreen, PickerItem, PickerScreen
+from deepagent_tui.tui.screens import (
+    CommandsScreen,
+    HelpScreen,
+    PickerItem,
+    PickerScreen,
+    StatusScreen,
+)
 from deepagent_tui.ui.markdown import render_markdown
 
 _DEBUG = os.environ.get("DEEPAGENT_DEBUG") == "1"
@@ -467,6 +473,7 @@ class DeepAgentTUI(App):
         self.session.replay = self._replay_thread
         self.session.show_help = self._tui_show_help
         self.session.show_commands = self._tui_show_commands
+        self.session.show_status = self._tui_show_status
         welcome = self.query_one("#welcome", WelcomeBanner)
         welcome.set_connecting(settings.langgraph_url)
 
@@ -1176,6 +1183,25 @@ class DeepAgentTUI(App):
         from deepagent_tui.commands import builtin_commands
 
         await self.push_screen_wait(CommandsScreen(builtin_commands()))
+
+    async def _tui_show_status(self) -> None:
+        """Push the full-screen status view. Called from the /status command worker."""
+        from deepagent_tui.utils.cost import format_cost, format_tokens
+
+        s = self.session
+        connection = [
+            ("Server", settings.langgraph_url),
+            ("Graph", s.graph_id or "not connected"),
+            ("Assistant", s.assistant_id or "not connected"),
+            ("Thread", s.thread_id or "none"),
+            ("Model", s.model or "unknown"),
+            ("Status", s.status),
+        ]
+        usage = [
+            ("Tokens", f"{format_tokens(s.input_tokens)} in / {format_tokens(s.output_tokens)} out"),
+            ("Cost", format_cost(s.total_cost)),
+        ]
+        await self.push_screen_wait(StatusScreen(connection, usage))
 
     def action_clear_log(self) -> None:
         container = self.query_one("#messages", Container)
