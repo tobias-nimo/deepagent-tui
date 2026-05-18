@@ -107,7 +107,7 @@ class StatusBar(Static):
 
 
 class WelcomeBanner(Static):
-    """Top banner: ASCII graph name, workspace · thread, /help. Scrolls with content."""
+    """Top banner: ASCII graph name, workspace · thread, /commands. Scrolls with content."""
 
     def __init__(self, session: Session, **kwargs: Any) -> None:
         super().__init__("", **kwargs)

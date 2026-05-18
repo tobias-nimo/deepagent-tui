@@ -4,7 +4,7 @@ All commands start with `/` and have tab-completion. While typing a slash comman
 
 ## Session
 
-### `/help`
+### `/commands`
 Lists built-in commands as a table with names and descriptions. (Dynamic skill commands appear via `/skills` instead.)
 
 ### `/status`

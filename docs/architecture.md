@@ -22,7 +22,7 @@ src/deepagent_tui/
 │   └── theme.py       # 8 themes + persistence + markdown style overrides
 ├── commands/
 │   ├── __init__.py    # @command registry + dispatch
-│   ├── builtins.py    # /help /clear /exit /status
+│   ├── builtins.py    # /commands /clear /exit /status
 │   ├── new.py         # /new
 │   ├── resume.py      # /resume
 │   ├── fork.py        # /fork

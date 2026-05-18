@@ -1,4 +1,4 @@
-"""Built-in commands: /help, /clear, /exit, /status."""
+"""Built-in commands: /commands, /clear, /exit, /status."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from deepagent_tui.commands import builtin_commands, command
 from deepagent_tui.ui.renderer import console, render_info
 
 
-@command("help", "Show available commands")
-async def cmd_help(client, session, args: str) -> None:
+@command("commands", "Show available commands")
+async def cmd_commands(client, session, args: str) -> None:
     cmds = builtin_commands()
     if not cmds:
         render_info("No commands registered.")
