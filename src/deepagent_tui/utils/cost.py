@@ -4,17 +4,19 @@ from __future__ import annotations
 
 # Pricing per 1M tokens (input, output) in USD
 MODEL_PRICING: dict[str, tuple[float, float]] = {
-    # Claude 4.5 / 4.6 family
+    # Anthropic
     "claude-opus-4-6": (5.0, 25.0),
     "claude-sonnet-4-6": (3.0, 15.0),
     "claude-haiku-4-5": (1.0, 5.0),
-    # GPT 5 family
+    # OpenAI
     "gpt-5.4-2026-03-05": (2.5, 15.0),
     "gpt-5.4-mini-2026-03-17": (0.75, 4.5),
     "gpt-5.4-nano-2026-03-17": (0.2, 1.25),
-    # GPT OSS family
+    # Groq
     "openai/gpt-oss-120b": (0.075, 0.30),
     "openai/gpt-oss-20b":  (0.15, 0.60),
+    # OpenRouter
+    "qwen/qwen3.6-35b-a3b-20260415": (0.17, 1.20),
 }
 
 # Default pricing if model is unknown
