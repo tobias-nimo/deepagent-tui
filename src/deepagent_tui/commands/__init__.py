@@ -16,18 +16,18 @@ if TYPE_CHECKING:
 
 CommandHandler = Callable[["AgentClient", "Session", str], Coroutine[Any, Any, None]]
 
-# Built-in commands (populated by @command decorator)
-_builtin: dict[str, tuple[CommandHandler, str]] = {}
-
-# Dynamic skill commands (populated at runtime from server)
-_dynamic: dict[str, tuple[CommandHandler, str]] = {}
+# Registries are keyed by lowercased name so lookup is case-insensitive
+# (`/HELP` and `/help` both resolve). The tuple carries the canonical name
+# so listings and skill-invocation prompts preserve the original casing.
+_builtin: dict[str, tuple[CommandHandler, str, str]] = {}
+_dynamic: dict[str, tuple[CommandHandler, str, str]] = {}
 
 
 def command(name: str, description: str = ""):
     """Decorator to register a built-in slash command handler."""
 
     def decorator(fn: CommandHandler) -> CommandHandler:
-        _builtin[name] = (fn, description)
+        _builtin[name.lower()] = (fn, description, name)
         return fn
 
     return decorator
@@ -35,7 +35,7 @@ def command(name: str, description: str = ""):
 
 def register_skill(name: str, description: str, handler: CommandHandler) -> None:
     """Register a server-discovered skill as a dynamic slash command."""
-    _dynamic[name] = (handler, description)
+    _dynamic[name.lower()] = (handler, description, name)
 
 
 def clear_dynamic() -> None:
@@ -43,31 +43,43 @@ def clear_dynamic() -> None:
     _dynamic.clear()
 
 
-def get_command(name: str) -> tuple[CommandHandler, str] | None:
-    """Look up a command by name. Built-in takes precedence over dynamic."""
-    return _builtin.get(name) or _dynamic.get(name)
+def get_command(name: str) -> tuple[CommandHandler, str, str] | None:
+    """Look up a command by name (case-insensitive).
+
+    Built-in takes precedence over dynamic. Returns (handler, description,
+    canonical_name) where canonical_name preserves the original casing used
+    at registration.
+    """
+    key = name.lower()
+    return _builtin.get(key) or _dynamic.get(key)
 
 
 def all_commands() -> dict[str, str]:
-    """Return {name: description} for all registered commands (built-in + dynamic)."""
-    result = {name: desc for name, (_, desc) in _dynamic.items()}
-    result.update({name: desc for name, (_, desc) in _builtin.items()})
+    """Return {canonical_name: description} for all registered commands."""
+    result = {canonical: desc for (_, desc, canonical) in _dynamic.values()}
+    result.update({canonical: desc for (_, desc, canonical) in _builtin.values()})
     return result
 
 
 def builtin_commands() -> dict[str, str]:
-    """Return {name: description} for built-in commands only."""
-    return {name: desc for name, (_, desc) in _builtin.items()}
+    """Return {canonical_name: description} for built-in commands only."""
+    return {canonical: desc for (_, desc, canonical) in _builtin.values()}
 
 
 def dynamic_commands() -> dict[str, str]:
-    """Return {name: description} for dynamic (skill) commands only."""
-    return {name: desc for name, (_, desc) in _dynamic.items()}
+    """Return {canonical_name: description} for dynamic (skill) commands only."""
+    return {canonical: desc for (_, desc, canonical) in _dynamic.values()}
+
+
+def is_dynamic(name: str) -> bool:
+    """True if `name` (case-insensitive) is a registered dynamic skill command."""
+    return name.lower() in _dynamic
 
 
 def all_command_names() -> list[str]:
     """Return sorted list of all command names prefixed with /."""
-    names = set(_builtin.keys()) | set(_dynamic.keys())
+    names = {canonical for (_, _, canonical) in _builtin.values()}
+    names |= {canonical for (_, _, canonical) in _dynamic.values()}
     return sorted(f"/{n}" for n in names)
 
 
@@ -90,7 +102,7 @@ async def dispatch(client: "AgentClient", session: "Session", text: str) -> bool
         # Forward unknown commands to the agent as skill invocations
         return False
 
-    handler, _ = entry
+    handler, _, _ = entry
     await handler(client, session, args)
     return True
 

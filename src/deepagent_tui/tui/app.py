@@ -517,10 +517,11 @@ class DeepAgentTUI(App):
         from deepagent_tui.commands import all_commands
 
         prefix = value[1:].split(None, 1)[0] if len(value) > 1 else ""
+        prefix_lc = prefix.lower()
         matches = sorted(
             (name, desc)
             for name, desc in all_commands().items()
-            if name.startswith(prefix)
+            if name.lower().startswith(prefix_lc)
         )
         ac.clear_options()
         if not matches:
@@ -799,17 +800,21 @@ class DeepAgentTUI(App):
         self.run_worker(_watch(), exclusive=False, name="worker-watch")
 
     async def _run_command(self, text: str) -> None:
-        from deepagent_tui.commands import dispatch as dispatch_command
-        from deepagent_tui.commands import dynamic_commands
+        from deepagent_tui.commands import (
+            dispatch as dispatch_command,
+            get_command,
+            is_dynamic,
+        )
 
         parts = text[1:].split(None, 1)
         name = parts[0] if parts else ""
         args = parts[1] if len(parts) > 1 else ""
+        name_lc = name.lower()
 
         # /clear in TUI: clear the message log directly. The registered command
         # writes ANSI clear codes to the rich console, which the TUI captures
         # and discards — so the underlying command is a no-op here.
-        if name == "clear":
+        if name_lc == "clear":
             self.action_clear_log()
             return
 
@@ -818,8 +823,13 @@ class DeepAgentTUI(App):
         # until the whole turn finishes — producing a frozen UI and a burst
         # of "Thinking…" frames at the end. Route through the TUI-native
         # stream worker instead so output appears progressively.
-        if name in dynamic_commands():
-            prompt = f"Use the {name} skill"
+        entry = get_command(name)
+        if entry is not None and is_dynamic(name):
+            # Use canonical (registered) name in the prompt so the agent sees
+            # the skill name exactly as it was registered, even if the user
+            # typed it in a different case.
+            canonical = entry[2]
+            prompt = f"Use the {canonical} skill"
             if args:
                 prompt += f": {args}"
             worker = self.run_worker(
@@ -842,7 +852,7 @@ class DeepAgentTUI(App):
 
         # /new clears the screen before creating a new thread; mirror that in
         # the TUI by wiping the message log after the command runs.
-        if name == "new" and handled:
+        if name_lc == "new" and handled:
             self.action_clear_log()
 
         # Repaint the welcome banner after any command: /theme changes the
