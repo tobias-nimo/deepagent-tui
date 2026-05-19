@@ -58,7 +58,11 @@ def _render_messages(messages: list[dict], *, include_users: bool) -> str:
                 continue
             content = _extract_text(msg.get("content", "")).strip()
             if content:
-                blocks.append(f"❯  {content}")
+                lines = content.split("\n")
+                formatted = "\n".join(
+                    [f"❯  {lines[0]}", *(f"   {ln}" for ln in lines[1:])]
+                )
+                blocks.append(formatted)
         elif role in ("ai", "assistant"):
             content = _extract_text(msg.get("content", "")).strip()
             if content:
