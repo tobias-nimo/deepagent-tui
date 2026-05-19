@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from deepagent_tui.commands import command
-from deepagent_tui.storage.db import upsert_thread
 from deepagent_tui.ui.renderer import render_info
 
 
@@ -20,6 +19,6 @@ async def cmd_new(client, session, args: str) -> None:
     session.output_tokens = 0
     session.total_cost = 0.0
 
-    await upsert_thread(thread_id, session.graph_id or "")
-
+    # Don't index the empty thread — the stream worker upserts on first
+    # message, so abandoned /new threads don't evict real conversations.
     render_info(f"New thread: {thread_id}")

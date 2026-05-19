@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from deepagent_tui.commands import command
-from deepagent_tui.storage.db import upsert_thread
 from deepagent_tui.tui.screens import PickerItem
 from deepagent_tui.ui.renderer import render_error, render_info
 
@@ -117,8 +116,9 @@ async def cmd_fork(client, session, args: str) -> None:
         session.output_tokens = 0
         session.total_cost = 0.0
 
-        await upsert_thread(new_thread_id, session.graph_id or "")
-
+        # Don't index the fork yet — the stream worker upserts on the next
+        # user message. If the fork is abandoned, it shouldn't take up a
+        # retention slot.
         await session.replay(fork_messages)
         render_info(f"Forked from message #{choice + 1}.")
 

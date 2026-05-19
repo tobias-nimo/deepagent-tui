@@ -9,7 +9,6 @@ from deepagent_tui.client import AgentClient
 from deepagent_tui.commands import clear_dynamic, register_skill
 from deepagent_tui.config import settings
 from deepagent_tui.session import Session
-from deepagent_tui.storage.db import upsert_thread
 from deepagent_tui.ui.renderer import render_error, render_info
 
 
@@ -58,7 +57,9 @@ async def connect(client: AgentClient, session: Session) -> bool:
     else:
         session.thread_id = await client.create_thread()
 
-    await upsert_thread(session.thread_id, session.graph_id or "")
+    # Intentionally don't persist the thread to the local index here. The
+    # first user message will upsert it via the stream worker — if the user
+    # never sends a message, this thread shouldn't occupy a retention slot.
     return True
 
 
