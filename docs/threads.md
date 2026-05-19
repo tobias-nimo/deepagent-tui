@@ -18,11 +18,7 @@ CREATE TABLE threads (
 )
 ```
 
-Rows are written by `upsert_thread()` in three places:
-
-1. On startup, when the session attaches to a thread (`bootstrap.connect`)
-2. After each completed assistant turn — updates `last_message` (first 100 chars) and `message_count`
-3. After `/new` and `/fork` — inserts the new thread
+Rows are written by `upsert_thread()` only after a completed assistant turn — it sets `last_message` (first 100 chars) and `message_count`. Threads with no messages aren't indexed locally: bootstrap, `/new`, and `/fork` create the server thread but defer the row until the first turn lands, so abandoned launches/forks don't evict real conversations under the retention cap.
 
 The actual conversation content (messages, checkpoints, tool calls) lives on the LangGraph server; this DB is only an index.
 
@@ -74,7 +70,7 @@ Forking needs the original thread to have completed at least one run — the ser
 Two clipboard commands, both targeting the system clipboard:
 
 - **`/copy`** — the **last assistant turn** only: final response text plus any tool calls/results that occurred in that turn. Useful for grabbing one answer to paste elsewhere.
-- **`/export`** — the **entire conversation**: every user turn (prefixed with `❯  `), every assistant response, and all tool activity.
+- **`/export`** — the **entire conversation**: every user turn (prefixed with `❯  `, with continuation lines indented by 3 spaces to align), every assistant response, and all tool activity. The output is preceded by the same ASCII welcome banner the TUI shows on launch (graph name + workspace path).
 
 Tool calls are rendered as fenced blocks, paired with their result by `tool_call_id`:
 
