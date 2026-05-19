@@ -67,9 +67,9 @@ Two causes:
 1. The agent uses `SkillsMiddleware` and hasn't loaded skills yet — send a message, then run `/skills refresh`.
 2. The agent doesn't expose skills via metadata or thread state. The TUI can't surface what isn't there.
 
-## `/copy` fails on Linux
+## `/copy` or `/export` fails on Linux
 
-The TUI tries `wl-copy` (Wayland), `xsel`, then `xclip` in that order. Install one of them:
+Both commands share the same clipboard path. The TUI tries `wl-copy` (Wayland), `xsel`, then `xclip` in that order. Install one of them:
 
 ```bash
 # Wayland

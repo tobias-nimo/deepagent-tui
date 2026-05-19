@@ -113,6 +113,7 @@ async def dispatch(client: "AgentClient", session: "Session", text: str) -> bool
 from deepagent_tui.commands import (  # noqa: E402, F401
     builtins,
     copy,
+    export,
     fork,
     help,
     new,

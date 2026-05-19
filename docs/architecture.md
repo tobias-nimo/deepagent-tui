@@ -27,7 +27,8 @@ src/deepagent_tui/
 │   ├── new.py         # /new
 │   ├── resume.py      # /resume
 │   ├── fork.py        # /fork
-│   ├── copy.py        # /copy
+│   ├── copy.py        # /copy + shared transcript/clipboard helpers
+│   ├── export.py      # /export
 │   ├── theme.py       # /theme
 │   └── skills.py      # /skills and /skills refresh
 ├── handlers/

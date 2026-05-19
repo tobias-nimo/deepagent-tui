@@ -42,7 +42,21 @@ Opens a picker of every distinct user message from the current thread's history.
 Forking requires the original thread to have at least one completed run (the server needs an assigned `graph_id` to copy state from).
 
 ### `/copy`
-Copies the conversation as markdown to the system clipboard. User messages are prefixed with `❯`, assistant messages are rendered as-is. Uses `pbcopy` on macOS, `clip` on Windows, and tries `wl-copy` → `xsel` → `xclip` on Linux. Missing tools produce a helpful error.
+Copies the **last assistant turn** (final response plus any tool calls/results from that turn) to the system clipboard. Use `/export` for the full conversation.
+
+### `/export`
+Copies the **entire conversation** to the system clipboard. User messages are prefixed with `❯`, assistant text is rendered as-is.
+
+Both commands format tool activity as fenced blocks, pairing each call with its result by `tool_call_id`:
+
+````
+```
+tool_name(arg=value, ...)
+⎿ result text
+```
+````
+
+A call with no matching result yet (pending or interrupted) is emitted without the `⎿` line. Clipboard backend: `pbcopy` on macOS, `clip` on Windows, `wl-copy` → `xsel` → `xclip` on Linux. Missing tools produce a helpful error.
 
 ## Appearance
 

@@ -1,7 +1,8 @@
-"""The /copy command — copy a conversation transcript to the clipboard."""
+"""The /copy command — copy the last assistant turn to the clipboard."""
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -22,27 +23,67 @@ def _extract_text(content) -> str:
     return str(content)
 
 
-def _build_transcript(messages: list[dict]) -> str:
-    lines: list[str] = []
+def _format_tool_block(tc: dict, result_msg: dict | None) -> str:
+    name = tc.get("name", "unknown")
+    args = tc.get("args", {})
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except (json.JSONDecodeError, TypeError):
+            args = {"input": args} if args else {}
+    if not isinstance(args, dict):
+        args = {}
+    parts = [f"{k}={v}" for k, v in args.items()]
 
-    for msg in messages:
-        role = msg.get("role") or msg.get("type", "")
-        content = _extract_text(msg.get("content", "")).strip()
-
-        if role in ("user", "human"):
-            if content:
-                lines.append(f"❯  {content}")
-                lines.append("")
-
-        elif role in ("ai", "assistant"):
-            if content:
-                lines.append(content)
-                lines.append("")
-
+    lines = ["```", f"{name}({', '.join(parts)})"]
+    if result_msg is not None:
+        result = _extract_text(result_msg.get("content", "")).strip()
+        lines.append(f"⎿ {result}")
+    lines.append("```")
     return "\n".join(lines)
 
 
-def _copy_to_clipboard(text: str) -> bool:
+def _render_messages(messages: list[dict], *, include_users: bool) -> str:
+    results_by_id: dict[str, dict] = {}
+    for msg in messages:
+        role = msg.get("role") or msg.get("type", "")
+        if role == "tool":
+            results_by_id[msg.get("tool_call_id", "")] = msg
+
+    blocks: list[str] = []
+    for msg in messages:
+        role = msg.get("role") or msg.get("type", "")
+        if role in ("user", "human"):
+            if not include_users:
+                continue
+            content = _extract_text(msg.get("content", "")).strip()
+            if content:
+                blocks.append(f"❯  {content}")
+        elif role in ("ai", "assistant"):
+            content = _extract_text(msg.get("content", "")).strip()
+            if content:
+                blocks.append(content)
+            for tc in msg.get("tool_calls") or []:
+                blocks.append(_format_tool_block(tc, results_by_id.get(tc.get("id", ""))))
+    return "\n\n".join(blocks)
+
+
+def build_last_turn(messages: list[dict]) -> str:
+    """Render the assistant turn after the most recent user message."""
+    last_user_idx = -1
+    for i, msg in enumerate(messages):
+        role = msg.get("role") or msg.get("type", "")
+        if role in ("user", "human"):
+            last_user_idx = i
+    return _render_messages(messages[last_user_idx + 1 :], include_users=False)
+
+
+def build_full_transcript(messages: list[dict]) -> str:
+    """Render the complete conversation including user messages and tool activity."""
+    return _render_messages(messages, include_users=True)
+
+
+def copy_to_clipboard(text: str) -> bool:
     encoded = text.encode()
     try:
         if sys.platform == "darwin":
@@ -87,7 +128,7 @@ def _copy_to_clipboard(text: str) -> bool:
     return False
 
 
-async def _fetch_messages(client, session) -> list[dict] | None:
+async def fetch_messages(client, session) -> list[dict] | None:
     if not session.thread_id:
         render_error("No active thread.")
         return None
@@ -103,15 +144,18 @@ async def _fetch_messages(client, session) -> list[dict] | None:
     return messages
 
 
-@command("copy", "Copy conversation to clipboard")
+@command("copy", "Copy the last agent response to clipboard")
 async def cmd_copy(client, session, args: str) -> None:
-    messages = await _fetch_messages(client, session)
+    messages = await fetch_messages(client, session)
     if messages is None:
         return
 
-    transcript = _build_transcript(messages)
+    transcript = build_last_turn(messages)
+    if not transcript.strip():
+        render_info("No agent response to copy yet.")
+        return
 
-    if _copy_to_clipboard(transcript):
-        render_info("Conversation copied to clipboard.")
+    if copy_to_clipboard(transcript):
+        render_info("Last response copied to clipboard.")
     else:
         render_error("Failed to copy to clipboard (install xsel, xclip, or wl-clipboard)")

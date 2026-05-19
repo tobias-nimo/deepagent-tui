@@ -69,15 +69,25 @@ Branches the current thread from an earlier user message into a new thread.
 
 Forking needs the original thread to have completed at least one run — the server requires an assigned `graph_id` on the source thread to copy state from. If it doesn't, the command reports `This thread has no history to fork from`.
 
-## Copying — `/copy`
+## Copying — `/copy` and `/export`
 
-Writes the current thread's transcript to the system clipboard as plain markdown:
+Two clipboard commands, both targeting the system clipboard:
 
-- User messages: `❯  <text>`
-- Assistant messages: rendered as-is (markdown preserved)
-- Tool calls and results are not included
+- **`/copy`** — the **last assistant turn** only: final response text plus any tool calls/results that occurred in that turn. Useful for grabbing one answer to paste elsewhere.
+- **`/export`** — the **entire conversation**: every user turn (prefixed with `❯  `), every assistant response, and all tool activity.
 
-Per-platform commands:
+Tool calls are rendered as fenced blocks, paired with their result by `tool_call_id`:
+
+````
+```
+tool_name(arg=value, ...)
+⎿ result text
+```
+````
+
+Pending or interrupted calls (no matching result) drop the `⎿` line.
+
+Per-platform clipboard backend:
 
 - macOS — `pbcopy`
 - Windows — `clip`
@@ -91,5 +101,6 @@ If none are available, the command reports the install hint.
 - `src/deepagent_tui/storage/db.py` — SQLite schema + helpers
 - `src/deepagent_tui/commands/resume.py` — `/resume` and `_switch_thread`
 - `src/deepagent_tui/commands/fork.py` — `/fork`
-- `src/deepagent_tui/commands/copy.py` — `/copy`
+- `src/deepagent_tui/commands/copy.py` — `/copy` (also hosts the shared transcript/clipboard helpers)
+- `src/deepagent_tui/commands/export.py` — `/export`
 - `src/deepagent_tui/commands/new.py` — `/new`
