@@ -46,6 +46,12 @@ class PickerScreen(Screen[Any]):
         height: auto;
         color: $text;
         text-style: bold;
+        padding: 0;
+    }
+
+    #picker-subtitle {
+        height: auto;
+        color: $text-muted;
         padding: 0 0 1 0;
     }
 
@@ -92,10 +98,12 @@ class PickerScreen(Screen[Any]):
         search_placeholder: str = "Search chats...",
         hint: str | None = None,
         max_visible: int | None = None,
+        subtitle: str | None = None,
     ) -> None:
         super().__init__()
         self._items = items
         self._heading = heading
+        self._subtitle = subtitle
         self._search_placeholder = search_placeholder
         self._hint = (
             hint
@@ -109,6 +117,8 @@ class PickerScreen(Screen[Any]):
     def compose(self) -> ComposeResult:
         with Vertical(id="picker-root"):
             yield Static("", id="picker-title")
+            if self._subtitle:
+                yield Static(Text(self._subtitle, style="dim"), id="picker-subtitle")
             yield Static("", id="picker-search")
             yield VerticalScroll(id="picker-rows")
             yield Static(self._hint, id="picker-footer")

@@ -97,7 +97,11 @@ async def cmd_resume(client, session, args: str) -> None:
         )
         for t in threads
     ]
-    chosen_id = await picker(items, "Resume session")
+    chosen_id = await picker(
+        items,
+        "Resume session",
+        subtitle="Showing the last message of each conversation",
+    )
     if chosen_id is None:
         render_info("Cancelled.")
         return
