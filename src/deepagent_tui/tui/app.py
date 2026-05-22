@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import os
+import time
 import traceback
 from pathlib import Path
 from typing import Any
@@ -124,6 +125,86 @@ class StatusBar(Static):
         )
 
 
+class HintBar(Static):
+    """Single-row bar below the chat input. Renders the per-turn wall
+    clock (⏱  N.Ns) followed by a context-aware hint: actionable cues
+    while streaming or composing, otherwise rotating between the
+    workspace path and tips."""
+
+    _TIPS = (
+        "Images and files can be pasted directly into the input",
+    )
+    _TICK = 0.1
+    _ROTATE_EVERY = 60  # 0.1s * 60 = 6s between idle rotations
+
+    def __init__(self, session: Session, **kwargs: Any) -> None:
+        super().__init__("", **kwargs)
+        self._session = session
+        self._tick = 0
+        self._timer_start: float | None = None
+        self._last_elapsed: float | None = None
+
+    def on_mount(self) -> None:
+        self.set_interval(self._TICK, self._refresh)
+        self._refresh()
+
+    def begin_timer(self) -> None:
+        self._timer_start = time.monotonic()
+        self._last_elapsed = None
+        self._refresh()
+
+    def end_timer(self) -> None:
+        if self._timer_start is not None:
+            self._last_elapsed = time.monotonic() - self._timer_start
+        self._timer_start = None
+        self._refresh()
+
+    def _refresh(self) -> None:
+        self._tick += 1
+        self.update(self._compose_row())
+
+    def _compose_row(self) -> Text:
+        row = Text("  ", style="dim")
+        clock = self._clock_text()
+        if clock is not None:
+            row.append(clock, style="dim")
+            row.append("   ·  ", style="dim")
+        row.append(self._hint_text(), style="dim")
+        return row
+
+    def _clock_text(self) -> str | None:
+        if self._timer_start is not None:
+            return f"⏱  {time.monotonic() - self._timer_start:.1f}s"
+        if self._last_elapsed is not None:
+            return f"⏱  {self._last_elapsed:.1f}s"
+        return None
+
+    def _hint_text(self) -> str:
+        s = self._session
+        if s.status == "streaming":
+            return "ESC to interrupt"
+        if s.status == "interrupted":
+            return "awaiting approval — use the buttons above"
+
+        try:
+            value = self.app.query_one("#prompt", ChatTextArea).text
+        except Exception:
+            value = ""
+
+        if value.startswith("/"):
+            return "Tab to complete · Enter to run"
+        if value.strip():
+            return "Enter to send · Shift+Enter for newline"
+
+        options: list[str] = []
+        ws = _workspace_label(s)
+        if ws:
+            options.append(ws)
+        options.extend(self._TIPS)
+        idx = (self._tick // self._ROTATE_EVERY) % len(options)
+        return options[idx]
+
+
 class WelcomeBanner(Static):
     """Top banner: ASCII graph name, workspace · thread, /commands. Scrolls with content."""
 
@@ -157,12 +238,6 @@ class WelcomeBanner(Static):
             rows.append(Text(""))
         for line in lines:
             rows.append(_gradient_line(line, max_w))
-
-        ws = _workspace_label(self._session)
-
-        rows.append(Text(""))
-        if ws:
-            rows.append(Text(ws, style="dim"))
 
         sep = Text("  ◆  ", style="dim")
         cmd = _command_color()
@@ -381,6 +456,13 @@ class DeepAgentTUI(App):
         margin: 0;
     }
 
+    #hint-bar {
+        height: 1;
+        padding: 0 2;
+        background: $background;
+        color: $text-muted;
+    }
+
     ChatBar {
         height: auto;
         max-height: 12;
@@ -488,6 +570,7 @@ class DeepAgentTUI(App):
             yield Static("", id="attachments", classes="-hidden")
             yield ChatBar(id="chat-bar")
             yield Rule(line_style="solid", id="chat-rule-bottom")
+            yield HintBar(self.session, id="hint-bar")
             yield OptionList(id="autocomplete", classes="-hidden")
         yield StatusBar(self.session, id="status-bar")
 
@@ -776,6 +859,8 @@ class DeepAgentTUI(App):
         self._messages.mount(widget)
         self._scroll_to_input()
 
+        self._begin_turn_timer()
+
         if is_command(text):
             # Commands run in a worker so they can await modal screens
             # (push_screen_wait) without blocking the input widget's
@@ -849,67 +934,76 @@ class DeepAgentTUI(App):
         args = parts[1] if len(parts) > 1 else ""
         name_lc = name.lower()
 
-        # /clear in TUI: clear the message log directly. The registered command
-        # writes ANSI clear codes to the rich console, which the TUI captures
-        # and discards — so the underlying command is a no-op here.
-        if name_lc == "clear":
-            self.action_clear_log()
-            return
-
-        # Dynamic (skill) commands: the registered handler streams via the
-        # CLI's rich.live renderer, which the TUI's console capture buffers
-        # until the whole turn finishes — producing a frozen UI and a burst
-        # of "Thinking…" frames at the end. Route through the TUI-native
-        # stream worker instead so output appears progressively.
-        entry = get_command(name)
-        if entry is not None and is_dynamic(name):
-            # Use canonical (registered) name in the prompt so the agent sees
-            # the skill name exactly as it was registered, even if the user
-            # typed it in a different case.
-            canonical = entry[2]
-            prompt = f"Use the {canonical} skill"
-            if args:
-                prompt += f": {args}"
-            worker = self.run_worker(
-                self._submit_message(prompt),
-                exclusive=True,
-                name="stream",
-                exit_on_error=False,
-            )
-            self._track_worker(worker)
-            return
-
-        from deepagent_tui.ui.renderer import render_error
-
-        with _capture_console() as cap:
-            try:
-                handled = await dispatch_command(self.client, self.session, text)
-            except Exception as e:  # noqa: BLE001
-                handled = True
-                render_error(f"Command error: {e}")
-                if _DEBUG:
-                    self._write_text(traceback.format_exc(), style="red")
-
-        # /new clears the previous conversation but should leave a visible
-        # trace — `❯ /new` and the `⎿ New thread: <id>` acknowledgment that
-        # cmd_new emitted. Keep just those last two widgets.
-        if name_lc == "new" and handled:
-            children = list(self._messages.children)
-            for child in children[:-2]:
-                child.remove()
-            self._tool_widgets.clear()
-
-        # Repaint the welcome banner after any command: /theme changes the
-        # gradient, and other commands may update session state shown there.
+        # Dynamic skills delegate to _submit_message in a fresh worker —
+        # that worker's finally block ends the turn timer. Every other
+        # branch finishes here, so we end the timer ourselves on exit.
+        end_timer_on_exit = True
         try:
-            self.query_one("#welcome", WelcomeBanner).refresh_content()
-        except Exception:
-            pass
+            # /clear in TUI: clear the message log directly. The registered command
+            # writes ANSI clear codes to the rich console, which the TUI captures
+            # and discards — so the underlying command is a no-op here.
+            if name_lc == "clear":
+                self.action_clear_log()
+                return
 
-        self._flush_capture(cap)
+            # Dynamic (skill) commands: the registered handler streams via the
+            # CLI's rich.live renderer, which the TUI's console capture buffers
+            # until the whole turn finishes — producing a frozen UI and a burst
+            # of "Thinking…" frames at the end. Route through the TUI-native
+            # stream worker instead so output appears progressively.
+            entry = get_command(name)
+            if entry is not None and is_dynamic(name):
+                # Use canonical (registered) name in the prompt so the agent sees
+                # the skill name exactly as it was registered, even if the user
+                # typed it in a different case.
+                canonical = entry[2]
+                prompt = f"Use the {canonical} skill"
+                if args:
+                    prompt += f": {args}"
+                worker = self.run_worker(
+                    self._submit_message(prompt),
+                    exclusive=True,
+                    name="stream",
+                    exit_on_error=False,
+                )
+                self._track_worker(worker)
+                end_timer_on_exit = False
+                return
 
-        if not handled:
-            render_error("Unknown command")
+            from deepagent_tui.ui.renderer import render_error
+
+            with _capture_console() as cap:
+                try:
+                    handled = await dispatch_command(self.client, self.session, text)
+                except Exception as e:  # noqa: BLE001
+                    handled = True
+                    render_error(f"Command error: {e}")
+                    if _DEBUG:
+                        self._write_text(traceback.format_exc(), style="red")
+
+            # /new clears the previous conversation but should leave a visible
+            # trace — `❯ /new` and the `⎿ New thread: <id>` acknowledgment that
+            # cmd_new emitted. Keep just those last two widgets.
+            if name_lc == "new" and handled:
+                children = list(self._messages.children)
+                for child in children[:-2]:
+                    child.remove()
+                self._tool_widgets.clear()
+
+            # Repaint the welcome banner after any command: /theme changes the
+            # gradient, and other commands may update session state shown there.
+            try:
+                self.query_one("#welcome", WelcomeBanner).refresh_content()
+            except Exception:
+                pass
+
+            self._flush_capture(cap)
+
+            if not handled:
+                render_error("Unknown command")
+        finally:
+            if end_timer_on_exit:
+                self._end_turn_timer()
 
     async def _submit_message(self, content: str | list) -> None:
         if _DEBUG:
@@ -976,6 +1070,7 @@ class DeepAgentTUI(App):
             self._finalize_slot()
             self._stream_buffer = ""
             self.session.status = "idle"
+            self._end_turn_timer()
             self._stream_worker = None
             self._active_run_id = None
             self._turn_start_index = None
@@ -1386,12 +1481,24 @@ class DeepAgentTUI(App):
             self._scroll_to_input()
         return choice
 
+    def _begin_turn_timer(self) -> None:
+        try:
+            self.query_one("#hint-bar", HintBar).begin_timer()
+        except Exception:
+            pass
+
+    def _end_turn_timer(self) -> None:
+        try:
+            self.query_one("#hint-bar", HintBar).end_timer()
+        except Exception:
+            pass
+
     def _set_approval_active(self, active: bool) -> None:
         """Show/hide the chat bar + adjacent rows while an inline approval
         is waiting. Each widget gets `.-approval-hidden`, which the CSS maps
         to `display: none`."""
         for sel in ("#chat-bar", "#chat-rule-top", "#chat-rule-bottom",
-                    "#autocomplete", "#attachments"):
+                    "#autocomplete", "#attachments", "#hint-bar"):
             try:
                 w = self.query_one(sel)
             except Exception:
