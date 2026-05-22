@@ -135,7 +135,7 @@ class HintBar(Static):
         "Pass images with ⌘C / ⌘V.",
     )
     _TICK = 0.1
-    _ROTATE_EVERY = 60  # 0.1s * 60 = 6s between idle rotations
+    _ROTATE_EVERY = 100  # 0.1s * 100 = 10s between idle rotations
 
     def __init__(self, session: Session, **kwargs: Any) -> None:
         super().__init__("", **kwargs)
