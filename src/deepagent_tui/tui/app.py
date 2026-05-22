@@ -90,11 +90,13 @@ def _user_message_with_attachments(
     return Group(*rows)
 
 
-def _user_message_widget(content: RenderableType) -> Static:
-    """Static wrapper for a user message with a left vertical bar in the
-    theme accent color."""
+def _user_message_widget(content: RenderableType, *, multiline: bool) -> Static:
+    """Static wrapper for a user message. Multi-line bubbles get a left
+    vertical bar in the theme accent color; single-line ones stay bare so
+    the `❯` prefix carries the emphasis on its own."""
     widget = Static(content, classes="msg-user")
-    widget.styles.border_left = ("solid", _theme.ACCENT_COLOR)
+    if multiline:
+        widget.styles.border_left = ("solid", _theme.ACCENT_COLOR)
     return widget
 
 
@@ -752,7 +754,8 @@ class DeepAgentTUI(App):
         if not is_command(text):
             self._turn_start_index = len(self._messages.children)
         widget = _user_message_widget(
-            _user_message_with_attachments(text, image_paths)
+            _user_message_with_attachments(text, image_paths),
+            multiline="\n" in text or bool(image_paths),
         )
         self._messages.mount(widget)
         self._scroll_to_input()
@@ -1257,7 +1260,9 @@ class DeepAgentTUI(App):
             if msg_type in ("user", "human"):
                 text = extract_text_content(content)
                 if text.strip():
-                    widget = _user_message_widget(_user_message_text(text))
+                    widget = _user_message_widget(
+                        _user_message_text(text), multiline="\n" in text
+                    )
                     self._messages.mount(widget)
             elif msg_type == "ai":
                 text = extract_text_content(content)
