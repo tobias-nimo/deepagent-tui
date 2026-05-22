@@ -63,15 +63,17 @@ def _user_message_text(text: str) -> Text:
     rest of the user message. Subsequent lines are indented to align past
     the leading `❯ ` prefix."""
     indent = "\n  "
+    accent = _theme.ACCENT_COLOR
+    out = Text()
+    out.append("❯ ", style=accent)
     if text.startswith("/"):
         head, sep, tail = text.partition(" ")
-        cmd = _command_color()
-        out = Text("❯ ")
-        out.append(head.replace("\n", indent), style=cmd)
+        out.append(head.replace("\n", indent), style=_command_color())
         if sep:
             out.append((sep + tail).replace("\n", indent))
         return out
-    return Text(f"❯ {text.replace(chr(10), indent)}")
+    out.append(text.replace("\n", indent))
+    return out
 
 
 def _user_message_with_attachments(
