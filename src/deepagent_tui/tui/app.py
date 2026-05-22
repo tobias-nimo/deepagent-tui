@@ -1564,7 +1564,14 @@ class DeepAgentTUI(App):
             return
         for line in raw.splitlines():
             if line:
-                self._write_renderable(Text.from_ansi(line))
+                rendered = Text.from_ansi(line)
+                # Skip lines that decode to nothing visible — e.g. the
+                # ANSI clear/home codes emitted by `console.clear()` in
+                # /new. Mounting them would add a phantom `.msg` widget
+                # whose `margin-top: 1` shows up as an extra blank row.
+                if not rendered.plain.strip():
+                    continue
+                self._write_renderable(rendered)
             else:
                 self._write_text("")
 
