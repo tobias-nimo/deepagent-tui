@@ -16,7 +16,7 @@ src/deepagent_tui/
 │   ├── screens.py     # PickerScreen (/resume, /fork, /skills), HelpScreen (/help), CommandsScreen (/commands), StatusScreen (/status)
 │   └── inline_approval.py  # InlineApproval widget for HITL prompts
 ├── ui/
-│   ├── renderer.py    # Shared rich Console + render_info/render_error
+│   ├── renderer.py    # render_info/render_error/render_renderable — ⎿ corner blocks via a mount sink installed by the TUI
 │   ├── markdown.py    # render_markdown — themed Rich Markdown
 │   ├── tool_widgets.py  # Per-tool inline widgets (Edit, Read, Bash, Todos, etc.)
 │   └── theme.py       # 8 themes + persistence + markdown style overrides

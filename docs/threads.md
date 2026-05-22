@@ -51,7 +51,7 @@ Resolves in this order:
 
 1. Updates `session.thread_id` and resets local counters (messages, tokens, cost)
 2. Fetches the thread state from the server
-3. Calls `session.replay(messages)` — the TUI wipes the message log and renders past messages inline, so you return to the conversation in place rather than seeing a status banner
+3. Calls `session.replay(messages, header=f"Resumed thread: {thread_id}")` — the TUI preserves the `❯ /resume` submission, mounts the header as a `⎿ Resumed thread: <id>` line, then renders past messages inline so you return to the conversation in place
 
 ## Forking — `/fork`
 
@@ -61,7 +61,7 @@ Branches the current thread from an earlier user message into a new thread.
 2. Extracts every distinct user message
 3. Opens a picker; the chosen message becomes the branch point
 4. Creates a new thread pre-loaded with messages from the start up to (but not including) the **chosen** user message — restoring the conversation to the point right before it
-5. Switches the session to the new thread, replays, and pre-fills the chat bar with the chosen message's text so it can be edited and resent
+5. Switches the session to the new thread, replays under a `⎿ Forked <new_id> from message #m.` header, and pre-fills the chat bar with the chosen message's text so it can be edited and resent
 
 Forking needs the original thread to have completed at least one run — the server requires an assigned `graph_id` on the source thread to copy state from. If it doesn't, the command reports `This thread has no history to fork from`.
 

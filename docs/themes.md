@@ -27,7 +27,7 @@ Run `/theme` to see the actual swatches in your terminal.
 ## Switching themes
 
 ```text
-/theme               # list themes with swatches; mark the current one
+/theme               # open a picker; each row shows a gradient bar + accent/command swatches
 /theme ocean         # switch to "ocean" and persist the choice
 ```
 
