@@ -85,7 +85,11 @@ async def cmd_fork(client, session, args: str) -> None:
         )
         for i, (idx, preview, _entry) in enumerate(unique_checkpoints, 1)
     ]
-    choice = await session.picker(items, "Fork from message")
+    choice = await session.picker(
+        items,
+        "Fork from message",
+        subtitle="Restore the conversation to the point before…",
+    )
     if choice is None:
         render_info("Cancelled.")
         return
@@ -95,16 +99,10 @@ async def cmd_fork(client, session, args: str) -> None:
     try:
         values = checkpoint_entry.get("values", {})
         messages = values.get("messages", [])
-        # Keep the chosen user message AND the assistant turn that responded to
-        # it (which may include tool calls/results). Stop at the next user
-        # message — that's where the branch should diverge.
-        end = len(messages)
-        for j in range(idx + 1, len(messages)):
-            role = messages[j].get("role") or messages[j].get("type", "")
-            if role in ("user", "human"):
-                end = j
-                break
-        fork_messages = messages[:end]
+        # Restore to the point *before* the chosen user message — that turn
+        # is what the user wants to edit and resend, so drop it (and anything
+        # after) from the new thread.
+        fork_messages = messages[:idx]
 
         new_thread_id = await client.copy_thread_with_messages(
             fork_messages, graph_id=session.graph_id,
@@ -120,15 +118,12 @@ async def cmd_fork(client, session, args: str) -> None:
         # user message. If the fork is abandoned, it shouldn't take up a
         # retention slot.
         await session.replay(fork_messages)
-        render_info(f"Forked from message #{choice + 1}.")
+        render_info(f"Forked before message #{choice + 1}.")
 
-        # Pre-fill the chat bar with the next user message from the original
-        # conversation — the one the branch would have diverged on — so the
-        # user can edit it and resend (or just hit enter to replay).
-        if end < len(messages):
-            next_text = _extract_text(messages[end].get("content", "")).strip()
-            if next_text and session.set_input is not None:
-                session.set_input(next_text)
+        # Pre-fill the chat bar with the selected user message so the user
+        # can edit it and resend (or just hit enter to replay verbatim).
+        if text.strip() and session.set_input is not None:
+            session.set_input(text.strip())
 
     except Exception as e:
         msg = str(e)

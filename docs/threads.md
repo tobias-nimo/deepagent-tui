@@ -60,8 +60,8 @@ Branches the current thread from an earlier user message into a new thread.
 1. Fetches the thread's checkpoint history (`get_thread_history`)
 2. Extracts every distinct user message
 3. Opens a picker; the chosen message becomes the branch point
-4. Creates a new thread pre-loaded with messages from the start up to (but not including) the **next** user message — i.e. the chosen user turn plus the assistant turn that responded to it (tool calls and results included)
-5. Switches the session to the new thread and replays
+4. Creates a new thread pre-loaded with messages from the start up to (but not including) the **chosen** user message — restoring the conversation to the point right before it
+5. Switches the session to the new thread, replays, and pre-fills the chat bar with the chosen message's text so it can be edited and resent
 
 Forking needs the original thread to have completed at least one run — the server requires an assigned `graph_id` on the source thread to copy state from. If it doesn't, the command reports `This thread has no history to fork from`.
 
