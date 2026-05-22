@@ -43,10 +43,11 @@ async def connect(client: AgentClient, session: Session) -> bool:
         # interactively here; the TUI hasn't grown a picker for this case
         # yet, so fall through to the first assistant and surface the list
         # as info so the user can pin one via env var.
-        render_info("Multiple assistants found — defaulting to the first one:")
+        lines = ["Multiple assistants found — defaulting to the first one:"]
         for a in assistants:
-            render_info(f"  · {a['graph_id']} (id: {a['assistant_id'][:8]}…)")
-        render_info("Set GRAPH_ID to pin a specific graph.")
+            lines.append(f"  · {a['graph_id']} (id: {a['assistant_id'][:8]}…)")
+        lines.append("Set GRAPH_ID to pin a specific graph.")
+        render_info("\n".join(lines))
         assistant = assistants[0]
 
     session.assistant_id = assistant["assistant_id"]

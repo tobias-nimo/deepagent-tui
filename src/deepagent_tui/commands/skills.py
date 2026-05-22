@@ -37,8 +37,10 @@ async def cmd_skills(client, session, args: str) -> None:
 
     skills = dict(dynamic_commands())
     if not skills:
-        render_info("No skills discovered yet.")
-        render_info("Send a message first, then use /skills refresh to fetch from agent state.")
+        render_info(
+            "No skills discovered yet.\n"
+            "Send a message first, then use /skills refresh to fetch from agent state."
+        )
         return
 
     picker = session.picker

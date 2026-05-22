@@ -6,7 +6,7 @@ from rich.table import Table
 from rich.text import Text
 
 from deepagent_tui.commands import command
-from deepagent_tui.ui.renderer import console, render_error, render_info
+from deepagent_tui.ui.renderer import render_error, render_info, render_renderable
 from deepagent_tui.ui.theme import (
     THEMES,
     available_themes,
@@ -43,9 +43,7 @@ async def cmd_theme(client, session, args: str) -> None:
             command_cell = Text("████", style=t.command)
             table.add_row(name_cell, gradient_cell, accent_cell, command_cell)
 
-        console.print()
-        console.print(table)
-        console.print()
+        render_renderable(table)
         render_info("Apply with /theme <name>")
         return
 

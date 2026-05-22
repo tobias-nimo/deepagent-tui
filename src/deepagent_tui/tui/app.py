@@ -332,7 +332,18 @@ class DeepAgentTUI(App):
     #messages .msg-user {
         height: auto;
         padding: 0 0 0 1;
-        margin: 1 0 1 0;
+        margin: 1 0 0 0;
+        background: $background;
+        color: $text;
+    }
+
+    /* Slash-command output (render_info / render_error / render_renderable).
+       Margin 0 so the `⎿` body sits flush under the user's `❯ /command`
+       submission and consecutive command lines stack tight together. */
+    #messages .msg-cmd {
+        height: auto;
+        padding: 0;
+        margin: 0;
         background: $background;
         color: $text;
     }
@@ -487,6 +498,11 @@ class DeepAgentTUI(App):
         self.session.show_commands = self._tui_show_commands
         self.session.show_status = self._tui_show_status
         self.session.set_input = self._tui_set_input
+        # Route render_info / render_error / render_renderable straight into
+        # the message log so each call becomes ONE widget — the multi-line
+        # `⎿` corner format depends on staying inside a single Static.
+        from deepagent_tui.ui.renderer import set_mount_sink
+        set_mount_sink(self._write_cmd_renderable)
         welcome = self.query_one("#welcome", WelcomeBanner)
         welcome.set_connecting(settings.langgraph_url)
 
@@ -863,12 +879,14 @@ class DeepAgentTUI(App):
             self._track_worker(worker)
             return
 
+        from deepagent_tui.ui.renderer import render_error
+
         with _capture_console() as cap:
             try:
                 handled = await dispatch_command(self.client, self.session, text)
             except Exception as e:  # noqa: BLE001
                 handled = True
-                self._write_text(f"  Command error: {e}", style="red")
+                render_error(f"Command error: {e}")
                 if _DEBUG:
                     self._write_text(traceback.format_exc(), style="red")
 
@@ -887,7 +905,7 @@ class DeepAgentTUI(App):
         self._flush_capture(cap)
 
         if not handled:
-            self._write_text(f"  Unknown command: /{name}", style="red")
+            render_error(f"Unknown command: /{name}")
 
     async def _submit_message(self, content: str | list) -> None:
         if _DEBUG:
@@ -1301,6 +1319,14 @@ class DeepAgentTUI(App):
 
     def _write_renderable(self, renderable: RenderableType) -> None:
         widget = Static(renderable, classes="msg")
+        self._messages.mount(widget)
+        self._scroll_to_input()
+
+    def _write_cmd_renderable(self, renderable: RenderableType) -> None:
+        """Sink for slash-command output. Mounts under `.msg-cmd` so the body
+        sits flush under the `❯ /command` user submission without the
+        one-row gap that `.msg` widgets get from their top margin."""
+        widget = Static(renderable, classes="msg-cmd")
         self._messages.mount(widget)
         self._scroll_to_input()
 
