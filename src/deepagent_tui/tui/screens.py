@@ -231,7 +231,7 @@ class PickerScreen(Screen[Any]):
     def _refresh_search(self) -> None:
         accent = _theme.current_theme().accent
         line = Text()
-        line.append("🔍  ", style="bold")
+        line.append("⌕ ", style="dim")
         if self._query:
             line.append(self._query, style=f"bold {accent}")
             line.append("▍", style=accent)
