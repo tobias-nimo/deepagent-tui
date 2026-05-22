@@ -60,18 +60,18 @@ def _command_color() -> str:
 def _user_message_text(text: str) -> Text:
     """Render a submitted message. If it starts with a slash command, paint
     the `/name` token in the command accent color so it stands out from the
-    rest of the bold user message. Subsequent lines are indented to align
-    past the leading `❯ ` prefix."""
+    rest of the user message. Subsequent lines are indented to align past
+    the leading `❯ ` prefix."""
     indent = "\n  "
     if text.startswith("/"):
         head, sep, tail = text.partition(" ")
         cmd = _command_color()
-        out = Text("❯ ", style="bold")
-        out.append(head.replace("\n", indent), style=f"bold {cmd}")
+        out = Text("❯ ")
+        out.append(head.replace("\n", indent), style=cmd)
         if sep:
-            out.append((sep + tail).replace("\n", indent), style="bold")
+            out.append((sep + tail).replace("\n", indent))
         return out
-    return Text(f"❯ {text.replace(chr(10), indent)}", style="bold")
+    return Text(f"❯ {text.replace(chr(10), indent)}")
 
 
 def _user_message_with_attachments(
@@ -86,6 +86,14 @@ def _user_message_with_attachments(
     for p in image_paths:
         rows.append(Text(f"  + {Path(p).name}", style=f"dim {accent}"))
     return Group(*rows)
+
+
+def _user_message_widget(content: RenderableType) -> Static:
+    """Static wrapper for a user message with a left vertical bar in the
+    theme accent color."""
+    widget = Static(content, classes="msg-user")
+    widget.styles.border_left = ("solid", _theme.ACCENT_COLOR)
+    return widget
 
 
 class StatusBar(Static):
@@ -319,7 +327,7 @@ class DeepAgentTUI(App):
 
     #messages .msg-user {
         height: auto;
-        padding: 0;
+        padding: 0 0 0 1;
         margin: 1 0 1 0;
         background: $background;
         color: $text;
@@ -741,9 +749,8 @@ class DeepAgentTUI(App):
         # results, partial assistant markdown, the active thinking slot).
         if not is_command(text):
             self._turn_start_index = len(self._messages.children)
-        widget = Static(
-            _user_message_with_attachments(text, image_paths),
-            classes="msg-user",
+        widget = _user_message_widget(
+            _user_message_with_attachments(text, image_paths)
         )
         self._messages.mount(widget)
         self._scroll_to_input()
@@ -1248,7 +1255,7 @@ class DeepAgentTUI(App):
             if msg_type in ("user", "human"):
                 text = extract_text_content(content)
                 if text.strip():
-                    widget = Static(_user_message_text(text), classes="msg-user")
+                    widget = _user_message_widget(_user_message_text(text))
                     self._messages.mount(widget)
             elif msg_type == "ai":
                 text = extract_text_content(content)
