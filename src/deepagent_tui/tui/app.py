@@ -168,7 +168,7 @@ class WelcomeBanner(Static):
         self.update(Group(*rows))
 
 
-_THINKING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+_THINKING_FRAMES = ["⠋", "⠙", "⠚", "⠞", "⠖", "⠦", "⠴", "⠲", "⠳", "⠓"]
 
 
 def _thinking_renderable(frame: int) -> Text:
@@ -1356,7 +1356,7 @@ class DeepAgentTUI(App):
         self._messages.mount(slot)
         self._active_slot = slot
         self._thinking_frame = 0
-        self._thinking_timer = self.set_interval(0.08, self._animate_thinking)
+        self._thinking_timer = self.set_interval(0.1, self._animate_thinking)
         self._scroll_to_input()
 
     def _animate_thinking(self) -> None:
