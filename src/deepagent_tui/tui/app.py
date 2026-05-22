@@ -132,7 +132,7 @@ class HintBar(Static):
     workspace path and tips."""
 
     _TIPS = (
-        "Pass images by pasting them directly into the input",
+        "Pass images with ⌘C / ⌘V.",
     )
     _TICK = 0.1
     _ROTATE_EVERY = 60  # 0.1s * 60 = 6s between idle rotations
