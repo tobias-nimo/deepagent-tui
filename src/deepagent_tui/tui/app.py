@@ -1179,16 +1179,20 @@ class DeepAgentTUI(App):
         hint: str | None = None,
         max_visible: int | None = None,
         subtitle: str | None = None,
+        search_placeholder: str | None = None,
     ) -> Any:
         """Inline list picker for /resume, /fork, and similar commands.
         Called from a worker (commands run as workers in the TUI), so it
         can use push_screen_wait directly to suspend the worker until the
         user picks or cancels."""
-        return await self.push_screen_wait(
-            PickerScreen(
-                items, heading, hint=hint, max_visible=max_visible, subtitle=subtitle
-            )
-        )
+        kwargs: dict[str, Any] = {
+            "hint": hint,
+            "max_visible": max_visible,
+            "subtitle": subtitle,
+        }
+        if search_placeholder is not None:
+            kwargs["search_placeholder"] = search_placeholder
+        return await self.push_screen_wait(PickerScreen(items, heading, **kwargs))
 
     async def _tui_show_help(self) -> None:
         """Push the full-screen help view. Called from the /help command worker."""

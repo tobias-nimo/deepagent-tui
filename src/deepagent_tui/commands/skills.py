@@ -46,7 +46,7 @@ async def cmd_skills(client, session, args: str) -> None:
         PickerItem(title=f"/{name}", subtitle=desc or "—", value=name)
         for name, desc in sorted(skills.items())
     ]
-    chosen = await picker(items, "Select skill")
+    chosen = await picker(items, "Select skill", search_placeholder="Search skills...")
     if chosen is None:
         return
 

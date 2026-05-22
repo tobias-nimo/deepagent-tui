@@ -89,6 +89,7 @@ async def cmd_fork(client, session, args: str) -> None:
         items,
         "Fork from message",
         subtitle="Restore the conversation to the point before…",
+        search_placeholder="Search messages...",
     )
     if choice is None:
         render_info("Cancelled.")
