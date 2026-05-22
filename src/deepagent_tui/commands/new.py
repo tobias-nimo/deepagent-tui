@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from deepagent_tui.commands import command
-from deepagent_tui.ui.renderer import render_info
 
 
 @command("new", "Clear screen and start a new conversation")
 async def cmd_new(client, session, args: str) -> None:
-    from deepagent_tui.ui.renderer import console
+    from deepagent_tui.ui.renderer import console, render_info
 
     console.clear()
 
@@ -21,4 +20,7 @@ async def cmd_new(client, session, args: str) -> None:
 
     # Don't index the empty thread — the stream worker upserts on first
     # message, so abandoned /new threads don't evict real conversations.
+    # In the TUI, `_run_command` wipes the log and re-mounts the user
+    # submission + acknowledgment after dispatch — but the CLI path needs
+    # this line on its own to confirm thread creation.
     render_info(f"New thread: {thread_id}")

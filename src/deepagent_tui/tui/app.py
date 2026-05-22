@@ -890,10 +890,14 @@ class DeepAgentTUI(App):
                 if _DEBUG:
                     self._write_text(traceback.format_exc(), style="red")
 
-        # /new clears the screen before creating a new thread; mirror that in
-        # the TUI by wiping the message log after the command runs.
+        # /new clears the previous conversation but should leave a visible
+        # trace — `❯ /new` and the `⎿ New thread: <id>` acknowledgment that
+        # cmd_new emitted. Keep just those last two widgets.
         if name_lc == "new" and handled:
-            self.action_clear_log()
+            children = list(self._messages.children)
+            for child in children[:-2]:
+                child.remove()
+            self._tool_widgets.clear()
 
         # Repaint the welcome banner after any command: /theme changes the
         # gradient, and other commands may update session state shown there.
@@ -905,7 +909,7 @@ class DeepAgentTUI(App):
         self._flush_capture(cap)
 
         if not handled:
-            render_error(f"Unknown command: /{name}")
+            render_error("Unknown command")
 
     async def _submit_message(self, content: str | list) -> None:
         if _DEBUG:
@@ -1214,16 +1218,22 @@ class DeepAgentTUI(App):
 
     async def _tui_show_help(self) -> None:
         """Push the full-screen help view. Called from the /help command worker."""
+        from deepagent_tui.ui.renderer import render_info
+
         await self.push_screen_wait(HelpScreen())
+        render_info("Help dialog dismissed.")
 
     async def _tui_show_commands(self) -> None:
         """Push the full-screen commands view. Called from the /commands command worker."""
         from deepagent_tui.commands import builtin_commands
+        from deepagent_tui.ui.renderer import render_info
 
         await self.push_screen_wait(CommandsScreen(builtin_commands()))
+        render_info("Commands dialog dismissed.")
 
     async def _tui_show_status(self) -> None:
         """Push the full-screen status view. Called from the /status command worker."""
+        from deepagent_tui.ui.renderer import render_info
         from deepagent_tui.utils.cost import format_cost, format_tokens
 
         s = self.session
@@ -1240,6 +1250,7 @@ class DeepAgentTUI(App):
             ("Cost", format_cost(s.total_cost)),
         ]
         await self.push_screen_wait(StatusScreen(connection, usage))
+        render_info("Status dialog dismissed.")
 
     def _tui_set_input(self, text: str) -> None:
         """Fill the chat input bar with `text` and focus it. Used by pickers
@@ -1265,13 +1276,24 @@ class DeepAgentTUI(App):
         except Exception:
             pass
 
-    async def _replay_thread(self, messages: list[dict]) -> None:
-        """Clear the message log and render past messages as static history,
-        so /resume returns to the conversation in place instead of printing a
-        status banner."""
+    async def _replay_thread(
+        self, messages: list[dict], *, header: str | None = None
+    ) -> None:
+        """Render past messages as static history. When `header` is given, the
+        last mounted widget (the `❯ /command` submission for this turn) is
+        preserved and a `⎿ {header}` line is mounted above the replayed
+        conversation; otherwise the log is fully cleared before replay."""
         from deepagent_tui.handlers.stream import extract_text_content
+        from deepagent_tui.ui.renderer import render_info
 
-        self.action_clear_log()
+        if header is not None:
+            children = list(self._messages.children)
+            for child in children[:-1]:
+                child.remove()
+            self._tool_widgets.clear()
+            render_info(header)
+        else:
+            self.action_clear_log()
 
         for msg in messages:
             if not isinstance(msg, dict):

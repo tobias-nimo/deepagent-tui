@@ -149,5 +149,6 @@ async def _switch_thread(client, session, thread_id: str) -> None:
         messages = []
 
     # Clear the screen and re-render the past conversation in place so the
-    # user picks up where they left off instead of seeing a status banner.
-    await session.replay(messages)
+    # user picks up where they left off. The `Resumed thread:` header sits
+    # above the replayed history so the user sees what just happened.
+    await session.replay(messages, header=f"Resumed thread: {thread_id}")

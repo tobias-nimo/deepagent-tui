@@ -37,10 +37,7 @@ async def cmd_skills(client, session, args: str) -> None:
 
     skills = dict(dynamic_commands())
     if not skills:
-        render_info(
-            "No skills discovered yet.\n"
-            "Send a message first, then use /skills refresh to fetch from agent state."
-        )
+        render_info("No skills discovered yet. Send a message first to refresh agent state.")
         return
 
     picker = session.picker
@@ -55,10 +52,10 @@ async def cmd_skills(client, session, args: str) -> None:
         search_placeholder="Search skills...",
     )
     if chosen is None:
+        render_info("Cancelled.")
         return
 
+    render_info(f"/{chosen}")
     fill = session.set_input
-    if fill is None:
-        render_info(f"Use /{chosen} to invoke this skill.")
-        return
-    fill(f"/{chosen} ")
+    if fill is not None:
+        fill(f"/{chosen} ")

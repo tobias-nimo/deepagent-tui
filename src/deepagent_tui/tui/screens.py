@@ -18,10 +18,12 @@ import deepagent_tui.ui.theme as _theme
 @dataclass
 class PickerItem:
     """One row in a picker — a bold title line, a dim subtitle line, and the
-    opaque value that's returned when the user selects this row."""
+    opaque value that's returned when the user selects this row. Subtitle
+    may be a Rich `Text` so callers can inject inline styling (e.g. the
+    /theme picker's gradient swatches)."""
 
     title: str
-    subtitle: str
+    subtitle: Text | str
     value: Any
 
 
@@ -191,11 +193,11 @@ class PickerScreen(Screen[Any]):
             indices = list(range(len(self._items)))
         else:
             q = self._query
-            indices = [
-                i
-                for i, it in enumerate(self._items)
-                if q in it.title.lower() or q in it.subtitle.lower()
-            ]
+            indices = []
+            for i, it in enumerate(self._items):
+                sub = it.subtitle.plain if isinstance(it.subtitle, Text) else it.subtitle
+                if q in it.title.lower() or q in sub.lower():
+                    indices.append(i)
         if self._max_visible is not None:
             indices = indices[: self._max_visible]
         return indices
@@ -269,7 +271,11 @@ class PickerScreen(Screen[Any]):
             head.append(item.title, style=f"bold {accent}")
         else:
             head = Text(f"  {item.title}")
-        sub = Text(f"  {item.subtitle}", style="dim")
+        sub = Text("  ")
+        if isinstance(item.subtitle, Text):
+            sub.append_text(item.subtitle)
+        else:
+            sub.append(item.subtitle, style="dim")
         return Group(head, sub)
 
     def _scroll_to_selected(self) -> None:

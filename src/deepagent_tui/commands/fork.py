@@ -117,9 +117,12 @@ async def cmd_fork(client, session, args: str) -> None:
 
         # Don't index the fork yet — the stream worker upserts on the next
         # user message. If the fork is abandoned, it shouldn't take up a
-        # retention slot.
-        await session.replay(fork_messages)
-        render_info(f"Forked before message #{choice + 1}.")
+        # retention slot. Pass a header so `⎿ Forked from message #m.`
+        # appears above the replayed history.
+        await session.replay(
+            fork_messages,
+            header=f"Forked {new_thread_id} from message #{choice + 1}.",
+        )
 
         # Pre-fill the chat bar with the selected user message so the user
         # can edit it and resend (or just hit enter to replay verbatim).
