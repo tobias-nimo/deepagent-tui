@@ -864,8 +864,6 @@ class DeepAgentTUI(App):
         self._messages.mount(widget)
         self._scroll_to_input()
 
-        self._begin_turn_timer()
-
         if is_command(text):
             # Commands run in a worker so they can await modal screens
             # (push_screen_wait) without blocking the input widget's
@@ -878,6 +876,8 @@ class DeepAgentTUI(App):
             )
             self._track_worker(worker)
             return
+
+        self._begin_turn_timer()
 
         if _DEBUG:
             self._write_text("  [debug] scheduling stream worker", style="dim yellow")
@@ -965,6 +965,7 @@ class DeepAgentTUI(App):
                 prompt = f"Use the {canonical} skill"
                 if args:
                     prompt += f": {args}"
+                self._begin_turn_timer()
                 worker = self.run_worker(
                     self._submit_message(prompt),
                     exclusive=True,
