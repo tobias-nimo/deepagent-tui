@@ -127,7 +127,7 @@ class StatusBar(Static):
 
 class HintBar(Static):
     """Single-row bar below the chat input. Renders the per-turn wall
-    clock (⏱  N.Ns) followed by a context-aware hint: actionable cues
+    clock (⏱  mm:ss) followed by a context-aware hint: actionable cues
     while streaming or composing, otherwise rotating between the
     workspace path and tips."""
 
@@ -174,10 +174,15 @@ class HintBar(Static):
 
     def _clock_text(self) -> str | None:
         if self._timer_start is not None:
-            return f"⏱  {time.monotonic() - self._timer_start:.1f}s"
+            return f"⏱  {self._format_elapsed(time.monotonic() - self._timer_start)}"
         if self._last_elapsed is not None:
-            return f"⏱  {self._last_elapsed:.1f}s"
+            return f"⏱  {self._format_elapsed(self._last_elapsed)}"
         return None
+
+    @staticmethod
+    def _format_elapsed(seconds: float) -> str:
+        total = int(seconds)
+        return f"{total // 60:02d}:{total % 60:02d}"
 
     def _hint_text(self) -> str:
         s = self._session
