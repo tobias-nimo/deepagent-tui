@@ -159,6 +159,11 @@ class HintBar(Static):
         self._timer_start = None
         self._refresh()
 
+    def reset_timer(self) -> None:
+        self._timer_start = None
+        self._last_elapsed = None
+        self._refresh()
+
     def _refresh(self) -> None:
         self._tick += 1
         self.update(self._compose_row())
@@ -934,6 +939,8 @@ class DeepAgentTUI(App):
             is_dynamic,
         )
 
+        self._reset_turn_timer()
+
         parts = text[1:].split(None, 1)
         name = parts[0] if parts else ""
         args = parts[1] if len(parts) > 1 else ""
@@ -1496,6 +1503,12 @@ class DeepAgentTUI(App):
     def _end_turn_timer(self) -> None:
         try:
             self.query_one("#hint-bar", HintBar).end_timer()
+        except Exception:
+            pass
+
+    def _reset_turn_timer(self) -> None:
+        try:
+            self.query_one("#hint-bar", HintBar).reset_timer()
         except Exception:
             pass
 
