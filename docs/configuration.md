@@ -11,8 +11,11 @@
 | `THREAD_ID` | — | Resume a specific thread on startup instead of creating a new one |
 | `LANGSMITH_API_KEY` | — | API key for authenticated connections (LangGraph Cloud) |
 | `DEEPAGENT_THEME` | `default` | Initial UI theme |
+| `DEEPAGENT_WORKSPACE` | — | Workspace path shown in the hint bar (rotates with tips while idle) and in the `/export` banner. Overrides whatever the server reports. |
 
 `DEEPAGENT_THEME` must be one of: `default`, `aesthetic`, `vintage`, `monochrome`, `terminal`, `sunset`, `ocean`, `neon`, `langchain`. See [themes.md](themes.md) for the catalog.
+
+`DEEPAGENT_WORKSPACE` is a display-only override. If unset, the TUI reads the workspace from thread state — the server is the authority. Set this when the server doesn't expose a workspace key, or when you want a different label (e.g. a symlink target, a short alias).
 
 ## `.env` files
 

@@ -216,7 +216,8 @@ class HintBar(Static):
 
 
 class WelcomeBanner(Static):
-    """Top banner: ASCII graph name, workspace · thread, /commands. Scrolls with content."""
+    """Top banner: ASCII graph name plus a `/` and `?` hint line. Scrolls with content.
+    The workspace path is shown by the hint bar, not here."""
 
     def __init__(self, session: Session, **kwargs: Any) -> None:
         super().__init__("", **kwargs)
@@ -1219,8 +1220,9 @@ class DeepAgentTUI(App):
             self.run_worker(self._discover_from_thread_state(), exclusive=False)
 
     async def _discover_from_thread_state(self) -> None:
-        """Fetch skills_metadata from thread state. Register skills as dynamic
-        slash commands and derive the workspace root from any skill path."""
+        """Fetch skills_metadata from thread state and register each as a dynamic
+        slash command. If workspace_root is unset (no DEEPAGENT_WORKSPACE), also
+        read it from thread state — the server is the authority."""
         if not self.session.thread_id:
             return
 
@@ -1243,17 +1245,6 @@ class DeepAgentTUI(App):
                 register_skill_command(name, desc, path)
 
         if self.session.workspace_root:
-            return
-
-        for sk in skills:
-            path = sk.get("path") if isinstance(sk, dict) else None
-            if not path:
-                continue
-            try:
-                root = str(Path(path).parents[3])
-            except IndexError:
-                continue
-            self._apply_workspace_root(root)
             return
 
         try:
