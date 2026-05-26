@@ -1225,7 +1225,7 @@ class DeepAgentTUI(App):
             elif tool_result is not None:
                 render_info(content or "Nothing to compact yet.")
             else:
-                render_error("/compact: no result from the agent.")
+                render_error("Error executing compact_conversation tool.")
         except Exception as e:  # noqa: BLE001
             try:
                 await progress.remove()
