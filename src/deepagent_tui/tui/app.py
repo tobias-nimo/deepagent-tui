@@ -394,6 +394,11 @@ class DeepAgentTUI(App):
         scrollbar-size: 0 0;
     }
 
+    /* Re-assert SettingsScreen's transparent backdrop here — the bare
+       `Screen` rule above otherwise wins the cascade against the modal's
+       own DEFAULT_CSS (same specificity, App CSS loads later). */
+    SettingsScreen { background: $background 0%; }
+
     #main {
         height: 1fr;
         background: $background;

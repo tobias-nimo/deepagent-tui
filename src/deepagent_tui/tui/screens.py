@@ -9,7 +9,7 @@ from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
-from textual.screen import Screen
+from textual.screen import ModalScreen, Screen
 from textual.widgets import Static
 
 import deepagent_tui.ui.theme as _theme
@@ -616,9 +616,13 @@ class StatusScreen(Screen[None]):
         return table
 
 
-class SettingsScreen(Screen[None]):
+class SettingsScreen(ModalScreen[None]):
     """Three-tab settings view: Config (interactive), Harness (static),
     Status (static).
+
+    Rendered as a bottom-anchored modal — the top of the underlying chat
+    stays visible through a transparent screen background, while the panel
+    docks to the lower 70% with a rounded border.
 
     Tabs are switched with Tab/Shift+Tab. On the Config tab, ↑/↓ move the
     highlighted row and ←/→ cycle its value; every change is persisted to
@@ -627,9 +631,15 @@ class SettingsScreen(Screen[None]):
     """
 
     DEFAULT_CSS = """
-    SettingsScreen { background: $background; layout: vertical; }
+    SettingsScreen { background: $background 0%; }
 
-    #settings-root { padding: 1 2; height: 1fr; background: $background; }
+    #settings-root {
+        dock: bottom;
+        padding: 1 2;
+        height: 70%;
+        background: $background;
+        border: round #4b5563;
+    }
 
     #settings-tabs {
         height: auto;
