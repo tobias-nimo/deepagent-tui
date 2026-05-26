@@ -1226,6 +1226,7 @@ class DeepAgentTUI(App):
                 render_info(content or "Nothing to compact yet.")
             else:
                 render_error("Error executing compact_conversation tool.")
+                render_info("Check if SummarizationToolMiddleware is registered on this agent.")
         except Exception as e:  # noqa: BLE001
             try:
                 await progress.remove()
@@ -1235,7 +1236,7 @@ class DeepAgentTUI(App):
                 msg = str(e)
                 if "compact_conversation is not a valid tool" in msg:
                     render_error(
-                        "/compact: SummarizationToolMiddleware is not registered "
+                        "SummarizationToolMiddleware is not registered "
                         "on this agent."
                     )
                 else:
