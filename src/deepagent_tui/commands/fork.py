@@ -42,6 +42,19 @@ async def cmd_fork(client, session, args: str) -> None:
         render_info("No history found for this thread.")
         return
 
+    # Messages removed via RemoveMessage (e.g. /compact's internal prompt) are
+    # gone from current state but still live in earlier checkpoints. Restrict
+    # fork candidates to IDs that survived into the latest snapshot so the
+    # picker doesn't expose internal prompts the user never sent.
+    live_ids: set[str] = set()
+    try:
+        current = await client.get_thread_state(session.thread_id)
+        for m in current.get("values", {}).get("messages", []) or []:
+            if isinstance(m, dict) and isinstance(m.get("id"), str):
+                live_ids.add(m["id"])
+    except Exception:
+        live_ids = set()
+
     # Extract checkpoints that contain user messages.
     user_checkpoints: list[tuple[int, str, dict]] = []
 
@@ -54,6 +67,9 @@ async def cmd_fork(client, session, args: str) -> None:
         for i, msg in enumerate(messages):
             role = msg.get("role") or msg.get("type", "")
             if role in ("user", "human"):
+                mid = msg.get("id")
+                if live_ids and (not isinstance(mid, str) or mid not in live_ids):
+                    continue
                 text = _extract_text(msg.get("content", ""))
                 if text.strip():
                     already = any(uc[0] == i and uc[1] == text for uc in user_checkpoints)
