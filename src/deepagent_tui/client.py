@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import uuid4
 
 from langgraph_sdk import get_client
 
@@ -158,6 +159,38 @@ class AgentClient:
     async def delete_thread(self, thread_id: str) -> None:
         """Delete a thread on the server."""
         await self._client.threads.delete(thread_id)
+
+    async def compact_thread(self, thread_id: str, assistant_id: str):
+        """Invoke the agent's `compact_conversation` tool directly.
+
+        Injects a synthetic AIMessage carrying a `compact_conversation` tool
+        call as if the model had produced it (`as_node="model"`), then streams
+        a no-input run so the graph routes through the tools node and back.
+        Requires `SummarizationToolMiddleware` to be registered on the server.
+
+        Yields the same event types as `stream_message`.
+        """
+        tool_call_id = f"compact-{uuid4().hex[:12]}"
+        ai_msg = {
+            "type": "ai",
+            "content": "",
+            "tool_calls": [
+                {"id": tool_call_id, "name": "compact_conversation", "args": {}}
+            ],
+        }
+        await self._client.threads.update_state(
+            thread_id=thread_id,
+            values={"messages": [ai_msg]},
+            as_node="model",
+        )
+        async for chunk in self._client.runs.stream(
+            thread_id=thread_id,
+            assistant_id=assistant_id,
+            input=None,
+            stream_mode=["updates", "messages"],
+            stream_subgraphs=True,
+        ):
+            yield chunk
 
     async def resume(self, thread_id: str, assistant_id: str, resume_value: Any):
         """Resume an interrupted run with a Command(resume=value).

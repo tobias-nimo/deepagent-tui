@@ -966,6 +966,23 @@ class DeepAgentTUI(App):
                 self.action_clear_log()
                 return
 
+            # /compact bypasses the LLM: inject a synthetic compact_conversation
+            # tool call into thread state and resume — the streaming pipeline
+            # mounts the tool widget the same way it would for any agent-issued
+            # call. Same shape as the dynamic-skill branch below.
+            if name_lc == "compact":
+                self._begin_turn_timer()
+                worker = self.run_worker(
+                    self._submit_compact(),
+                    exclusive=True,
+                    name="stream",
+                    exit_on_error=False,
+                )
+                self._stream_worker = worker
+                self._track_worker(worker)
+                end_timer_on_exit = False
+                return
+
             # Dynamic (skill) commands: the registered handler streams via the
             # CLI's rich.live renderer, which the TUI's console capture buffers
             # until the whole turn finishes — producing a frozen UI and a burst
@@ -1097,6 +1114,144 @@ class DeepAgentTUI(App):
             self._turn_start_index = None
             self._last_user_text = ""
             self._last_user_attachments = []
+
+    async def _submit_compact(self) -> None:
+        """Run compact_conversation silently and render a slash-style outcome.
+
+        We don't want the synthetic tool call, the tool result, or the model's
+        post-tool follow-up to appear in the conversation at all. So:
+          1. Snapshot baseline message count.
+          2. Mount a `⎿ Compacting…` placeholder (flush, no top margin).
+          3. Drain the stream without mounting any widgets.
+          4. Inspect the tool result from final state to decide success/fail.
+          5. Remove every message added during this turn via RemoveMessage —
+             on success, the summary survives in `_summarization_event` state.
+          6. Replace the placeholder with `⎿ <outcome>`.
+        """
+        import re
+
+        from deepagent_tui.handlers.stream import process_updates_event
+        from deepagent_tui.ui.renderer import render_error, render_info
+
+        if not self.session.thread_id or not self.session.assistant_id:
+            render_error("/compact: not connected.")
+            return
+
+        # Capture baseline so we know exactly which messages this turn added.
+        try:
+            baseline_state = await self.client.get_thread_state(self.session.thread_id)
+            baseline_msgs = (
+                baseline_state.get("values", {}).get("messages", []) or []
+            )
+            baseline_count = len(baseline_msgs)
+        except Exception:
+            baseline_count = 0
+
+        def _compact_frame(n: int) -> Text:
+            return Text(f"  ⎿ Compacting{'.' * (n % 4)}", style="dim")
+
+        progress = Static(_compact_frame(1), classes="msg-cmd")
+        self._messages.mount(progress)
+        self._scroll_to_input()
+
+        compact_tick = [2]
+
+        def _animate_compact() -> None:
+            progress.update(_compact_frame(compact_tick[0]))
+            compact_tick[0] += 1
+
+        compact_timer = self.set_interval(0.35, _animate_compact)
+
+        self.session.status = "streaming"
+        stream_state = StreamState()
+        try:
+            stream = self.client.compact_thread(
+                self.session.thread_id, self.session.assistant_id
+            )
+            async for chunk in stream:
+                if chunk.event == "metadata" and isinstance(chunk.data, dict):
+                    rid = chunk.data.get("run_id")
+                    if isinstance(rid, str):
+                        self._active_run_id = rid
+                elif chunk.event.startswith("updates") and isinstance(chunk.data, dict):
+                    process_updates_event(chunk.data, stream_state)
+            self._flush_usage(stream_state)
+
+            final_state = await self.client.get_thread_state(self.session.thread_id)
+            final_msgs = final_state.get("values", {}).get("messages", []) or []
+            added = final_msgs[baseline_count:]
+
+            tool_result = next(
+                (
+                    m for m in added
+                    if isinstance(m, dict)
+                    and m.get("type") == "tool"
+                    and m.get("name") == "compact_conversation"
+                ),
+                None,
+            )
+            content = ""
+            if tool_result is not None:
+                tc_content = tool_result.get("content")
+                if isinstance(tc_content, str):
+                    content = tc_content
+            ok = "Conversation compacted" in content
+
+            remove_ids = [
+                m["id"] for m in added
+                if isinstance(m, dict) and isinstance(m.get("id"), str)
+            ]
+            if remove_ids:
+                try:
+                    await self.client._client.threads.update_state(
+                        thread_id=self.session.thread_id,
+                        values={
+                            "messages": [
+                                {"role": "remove", "content": "", "id": mid}
+                                for mid in remove_ids
+                            ]
+                        },
+                    )
+                except Exception:
+                    pass
+
+            await progress.remove()
+            if ok:
+                m = re.search(r"(\d+)\s+message", content)
+                n = int(m.group(1)) if m else 0
+                render_info(
+                    f"Summarised {n} message{'s' if n != 1 else ''} into a concise summary."
+                )
+            elif tool_result is not None:
+                render_info(content or "Nothing to compact yet.")
+            else:
+                render_error("/compact: no result from the agent.")
+        except Exception as e:  # noqa: BLE001
+            try:
+                await progress.remove()
+            except Exception:
+                pass
+            if not self._cancelling:
+                msg = str(e)
+                if "compact_conversation is not a valid tool" in msg:
+                    render_error(
+                        "/compact: SummarizationToolMiddleware is not registered "
+                        "on this agent."
+                    )
+                else:
+                    render_error(f"/compact failed: {e}")
+                if _DEBUG:
+                    self._write_text(traceback.format_exc(), style="red")
+        finally:
+            try:
+                compact_timer.stop()
+            except Exception:
+                pass
+            self.session.status = "idle"
+            self._end_turn_timer()
+            self._stream_worker = None
+            self._active_run_id = None
+            self._turn_start_index = None
 
     async def _consume_stream(
         self,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import difflib
 import os
+import re
 from typing import Callable
 
 from rich.console import Group, RenderableType
@@ -275,6 +276,11 @@ def _call_ls(tc: FormattedToolCall, state: str) -> RenderableType:
     return _header("List", str(path), state=state)
 
 
+def _call_compact(tc: FormattedToolCall, state: str) -> RenderableType:
+    summary = "summarising conversation…" if state == "pending" else None
+    return _header("Compact", summary, state=state)
+
+
 _IN_PROGRESS_STATUSES = {"in_progress", "doing", "active", "running"}
 _SKIPPED_STATUSES = {"cancelled", "skipped"}
 
@@ -425,6 +431,7 @@ _CALL_RENDERERS: dict[str, Callable[[FormattedToolCall, str], RenderableType]] =
     "bash": _call_bash,
     "ls": _call_ls,
     "write_todos": _call_write_todos,
+    "compact_conversation": _call_compact,
 }
 
 
@@ -808,6 +815,32 @@ def _result_task(result: FormattedToolResult, call) -> RenderableType | None:
     return None
 
 
+_COMPACT_OK_RE = re.compile(r"Summarized\s+(\d+)\s+message", re.IGNORECASE)
+
+
+def _result_compact(result: FormattedToolResult, call) -> RenderableType:
+    """Render the compact_conversation tool message.
+
+    The middleware returns one of two distinct strings:
+      - eligible:    "Conversation compacted. Summarized N messages into a concise summary."
+      - below gate:  "Nothing to compact yet — conversation is within the token budget."
+    Pull `N` out of the first form so the trace line reads cleanly; otherwise
+    show the raw message verbatim.
+    """
+    if result.is_error:
+        return _result_inline(result.summary, error=True)
+    content = (result.content or "").strip()
+    m = _COMPACT_OK_RE.search(content)
+    if m:
+        n = int(m.group(1))
+        return _corner_inline(
+            f"Summarised {n} message{'s' if n != 1 else ''} into a concise summary"
+        )
+    if not content:
+        return _corner_inline("done")
+    return _corner_inline(content)
+
+
 def _result_write_todos(result: FormattedToolResult, call) -> RenderableType | None:
     """Suppress the `⎿ Updated todo list to [...]` body — the call widget
     above already shows the post-update list with status glyphs, so the raw
@@ -832,6 +865,7 @@ _RESULT_RENDERERS: dict[
     "ls": _result_ls,
     "task": _result_task,
     "write_todos": _result_write_todos,
+    "compact_conversation": _result_compact,
 }
 
 
