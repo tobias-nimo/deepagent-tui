@@ -41,6 +41,13 @@ Opens a picker of every distinct user message from the current thread's history.
 
 Forking requires the original thread to have at least one completed run (the server needs an assigned `graph_id` to copy state from).
 
+### `/compact`
+Asks the agent to summarise older messages via its `compact_conversation` tool, freeing up context window space. Runs silently — a dim animated `⎿ Compacting…` placeholder is shown during the operation, then replaced by `⎿ Summarised N messages …` (success) or `⎿ Nothing to compact yet — conversation is within the token budget.` (when the agent's eligibility gate denies because the conversation is too small to be worth compacting).
+
+Every message the operation added to thread state (the internal prompt, the AI tool call, the tool result, and the model's follow-up) is removed via `RemoveMessage` on completion — only the slash-style trace remains. On success, the actual summary lives in `_summarization_event` state and is applied to subsequent model runs by `SummarizationMiddleware`.
+
+Requires `SummarizationToolMiddleware` on the agent server. Without it the command reports `Error executing compact_conversation tool.` See [server-middleware.md](server-middleware.md#conversation-compaction) for the wiring recipe.
+
 ### `/copy`
 Copies the **last assistant turn** (final response plus any tool calls/results from that turn) to the system clipboard. Use `/export` for the full conversation.
 

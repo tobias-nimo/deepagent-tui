@@ -27,6 +27,7 @@ src/deepagent_tui/
 │   ├── new.py         # /new
 │   ├── resume.py      # /resume
 │   ├── fork.py        # /fork
+│   ├── compact.py     # /compact (TUI intercepts; routes through _submit_compact)
 │   ├── copy.py        # /copy + shared transcript/clipboard helpers
 │   ├── export.py      # /export
 │   ├── theme.py       # /theme
@@ -93,6 +94,21 @@ Pressing `Esc` while a stream is in flight calls `_cancel_and_rollback`:
 3. Removes every widget mounted after `_turn_start_index` — the user bubble, tool call/result panels, partial assistant text, the thinking slot.
 4. Pops the user message from `session.messages`.
 5. Restores the raw input (with any newlines) back into the chat bar, re-stages the attachments, and refocuses the prompt.
+
+## `/compact` flow
+
+`/compact` is the only built-in slash command that has to drive the streaming pipeline. The TUI intercepts it in `_run_command` (before `dispatch_command`) and routes through `_submit_compact()`:
+
+1. Snapshot `len(state.messages)` as the baseline.
+2. Mount a dim animated `⎿ Compacting…` placeholder (timer cycles 0–3 dots).
+3. Call `client.compact_thread(...)`, which sends `"Invoke the compact_conversation tool now …"` as a user prompt and streams the response. We drain the stream silently — `process_updates_event` runs only for token accounting; no widgets are mounted.
+4. Fetch the final state, find the `compact_conversation` tool message in the messages added since the baseline, parse its content to decide success vs gate-denied.
+5. Remove **every** message added during the turn via `RemoveMessage` (wire format: `{"role":"remove","content":"","id":<id>}`). On success, the summary survives in `_summarization_event`.
+6. Replace the placeholder with `⎿ Summarised N messages …` or `⎿ Nothing to compact yet …`.
+
+Why a user prompt and not synthetic AIMessage injection? `_is_eligible_for_compaction` reads `usage_metadata.total_tokens` from the latest AIMessage, and langchain's dict-to-message coercion drops `usage_metadata` when a message reaches the server over the wire. A natural model-produced AIMessage carries `usage_metadata` intact; an injected one always reports 0 tokens and the gate always denies. See [server-middleware.md](server-middleware.md#conversation-compaction).
+
+Side effect: `/fork` filters its picker by IDs that still exist in current state, so the internal compact prompt — present in earlier checkpoints but removed from the latest snapshot — doesn't surface in fork candidates.
 
 ## Deep Agent assumptions
 

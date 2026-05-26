@@ -65,6 +65,10 @@ Branches the current thread from an earlier user message into a new thread.
 
 Forking needs the original thread to have completed at least one run — the server requires an assigned `graph_id` on the source thread to copy state from. If it doesn't, the command reports `This thread has no history to fork from`.
 
+### Filtering removed messages
+
+LangGraph keeps every checkpoint, so a message deleted via `RemoveMessage` (e.g. the internal prompt that `/compact` issues, then cleans up) still lives in earlier snapshots. The fork picker would otherwise surface those as fork candidates. To avoid that, `/fork` reads the latest thread state once, builds a set of live message IDs, and skips any checkpoint message whose id isn't in that set. The filter is generic — it applies to any user message that was later removed, not just to `/compact`.
+
 ## Copying — `/copy` and `/export`
 
 Two clipboard commands, both targeting the system clipboard:

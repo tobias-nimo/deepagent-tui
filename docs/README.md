@@ -18,5 +18,5 @@ In-depth guides for `deepagent-tui`. The top-level [README](../README.md) is the
 
 - [Architecture](architecture.md) — package layout and how a turn flows end-to-end
 - [Tool widgets](tool-widgets.md) — custom inline rendering for built-in tools
-- [Workspace root](workspace-root.md) — middleware recipe for exposing the agent's workspace path to the TUI
+- [Server middleware](server-middleware.md) — recipes for exposing workspace path + enabling `/compact` from the agent server
 - [Testing](testing.md) — what's covered, how to add a test

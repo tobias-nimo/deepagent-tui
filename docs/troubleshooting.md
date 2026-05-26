@@ -60,6 +60,14 @@ When dragging from Finder/Files, your terminal needs to paste the path; if it do
 
 Forking copies state from the source thread, and the server needs a `graph_id` on that thread to do it. A brand-new thread that hasn't completed a run yet doesn't have one. Send at least one message before forking.
 
+## `/compact` reports `Error executing compact_conversation tool.`
+
+The agent doesn't have `SummarizationToolMiddleware` registered, so the `compact_conversation` tool isn't in its tool list. Add the middleware to the server's `create_deep_agent(middleware=[...])` list and restart `langgraph dev`. The recipe is in [server-middleware.md](server-middleware.md#conversation-compaction).
+
+## `/compact` always says `Nothing to compact yet …`
+
+The middleware is registered but the eligibility gate is denying. By design, the gate refuses to compact until reported usage reaches ~50% of the auto-summarization trigger (default: ~42.5% of `max_input_tokens`). For short conversations this is the correct outcome — the tool will fire once the context grows past that threshold.
+
 ## `/skills` shows nothing
 
 Two causes:
