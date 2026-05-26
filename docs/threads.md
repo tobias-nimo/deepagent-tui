@@ -1,6 +1,6 @@
 # Threads
 
-How conversations are persisted, resumed, forked, and copied.
+How conversations are persisted, resumed, rewound, and copied.
 
 ## Storage
 
@@ -18,7 +18,7 @@ CREATE TABLE threads (
 )
 ```
 
-Rows are written by `upsert_thread()` only after a completed assistant turn — it sets `last_message` (first 100 chars) and `message_count`. Threads with no messages aren't indexed locally: bootstrap, `/new`, and `/fork` create the server thread but defer the row until the first turn lands, so abandoned launches/forks don't evict real conversations under the retention cap.
+Rows are written by `upsert_thread()` only after a completed assistant turn — it sets `last_message` (first 100 chars) and `message_count`. Threads with no messages aren't indexed locally: bootstrap, `/new`, and `/rewind` create the server thread but defer the row until the first turn lands, so abandoned launches/rewinds don't evict real conversations under the retention cap.
 
 The actual conversation content (messages, checkpoints, tool calls) lives on the LangGraph server; this DB is only an index.
 
@@ -53,7 +53,7 @@ Resolves in this order:
 2. Fetches the thread state from the server
 3. Calls `session.replay(messages, header=f"Resumed thread: {thread_id}")` — the TUI preserves the `❯ /resume` submission, mounts the header as a `⎿ Resumed thread: <id>` line, then renders past messages inline so you return to the conversation in place
 
-## Forking — `/fork`
+## Rewinding — `/rewind`
 
 Branches the current thread from an earlier user message into a new thread.
 
@@ -61,13 +61,13 @@ Branches the current thread from an earlier user message into a new thread.
 2. Extracts every distinct user message
 3. Opens a picker; the chosen message becomes the branch point
 4. Creates a new thread pre-loaded with messages from the start up to (but not including) the **chosen** user message — restoring the conversation to the point right before it
-5. Switches the session to the new thread, replays under a `⎿ Forked <new_id> from message #m.` header, and pre-fills the chat bar with the chosen message's text so it can be edited and resent
+5. Switches the session to the new thread, replays under a `⎿ Rewound to message #m (new thread <new_id>).` header, and pre-fills the chat bar with the chosen message's text so it can be edited and resent
 
-Forking needs the original thread to have completed at least one run — the server requires an assigned `graph_id` on the source thread to copy state from. If it doesn't, the command reports `This thread has no history to fork from`.
+Rewinding needs the original thread to have completed at least one run — the server requires an assigned `graph_id` on the source thread to copy state from. If it doesn't, the command reports `This thread has no history to rewind to`.
 
 ### Filtering removed messages
 
-LangGraph keeps every checkpoint, so a message deleted via `RemoveMessage` (e.g. the internal prompt that `/compact` issues, then cleans up) still lives in earlier snapshots. The fork picker would otherwise surface those as fork candidates. To avoid that, `/fork` reads the latest thread state once, builds a set of live message IDs, and skips any checkpoint message whose id isn't in that set. The filter is generic — it applies to any user message that was later removed, not just to `/compact`.
+LangGraph keeps every checkpoint, so a message deleted via `RemoveMessage` (e.g. the internal prompt that `/compact` issues, then cleans up) still lives in earlier snapshots. The rewind picker would otherwise surface those as rewind candidates. To avoid that, `/rewind` reads the latest thread state once, builds a set of live message IDs, and skips any checkpoint message whose id isn't in that set. The filter is generic — it applies to any user message that was later removed, not just to `/compact`.
 
 ## Copying — `/copy` and `/export`
 
@@ -100,7 +100,7 @@ If none are available, the command reports the install hint.
 
 - `src/deepagent_tui/storage/db.py` — SQLite schema + helpers
 - `src/deepagent_tui/commands/resume.py` — `/resume` and `_switch_thread`
-- `src/deepagent_tui/commands/fork.py` — `/fork`
+- `src/deepagent_tui/commands/rewind.py` — `/rewind`
 - `src/deepagent_tui/commands/copy.py` — `/copy` (also hosts the shared transcript/clipboard helpers)
 - `src/deepagent_tui/commands/export.py` — `/export`
 - `src/deepagent_tui/commands/new.py` — `/new`

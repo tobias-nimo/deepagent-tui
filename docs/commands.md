@@ -8,7 +8,7 @@ All commands start with `/` and have tab-completion. While typing a slash comman
 Opens a full-screen list of built-in commands (`CommandsScreen` in `tui/screens.py`). The screen ends with a short note explaining that skills are invoked as `/<skill-name>` and pointing to `/skills` to see what the current agent exposes. Esc / Ctrl+C / q closes it; up/down/PageUp/PageDown scroll.
 
 ### `/help`
-Opens a full-screen help view (`HelpScreen` in `tui/screens.py`) with keyboard shortcuts and tips. Esc / Ctrl+C / q closes it; up/down/PageUp/PageDown scroll. Same modal-screen pattern as `/commands`, `/resume`, and `/fork`.
+Opens a full-screen help view (`HelpScreen` in `tui/screens.py`) with keyboard shortcuts and tips. Esc / Ctrl+C / q closes it; up/down/PageUp/PageDown scroll. Same modal-screen pattern as `/commands`, `/resume`, and `/rewind`.
 
 ### `/status`
 Opens a full-screen view (`StatusScreen` in `tui/screens.py`) of the current session, split into two sections:
@@ -36,10 +36,10 @@ Quits the TUI. Equivalent to `Ctrl+C`.
 
 Switching threads resets token/cost counters and re-renders past messages in place, with a `⎿ Resumed thread: <id>` line above the replayed conversation.
 
-### `/fork`
-Opens a picker of every distinct user message from the current thread's history. Selecting one creates a new thread pre-loaded with messages up to (but not including) the chosen user message — restoring the conversation to the point right before that turn. The session switches to the new thread, replays under a `⎿ Forked <new_id> from message #m.` header, and pre-fills the chat bar with the chosen message so it can be edited and resent. Dismissing the picker prints `⎿ Cancelled.`
+### `/rewind`
+Opens a picker of every distinct user message from the current thread's history. Selecting one creates a new thread pre-loaded with messages up to (but not including) the chosen user message — restoring the conversation to the point right before that turn. The session switches to the new thread, replays under a `⎿ Rewound to message #m (new thread <new_id>).` header, and pre-fills the chat bar with the chosen message so it can be edited and resent. Dismissing the picker prints `⎿ Cancelled.`
 
-Forking requires the original thread to have at least one completed run (the server needs an assigned `graph_id` to copy state from).
+Rewinding requires the original thread to have at least one completed run (the server needs an assigned `graph_id` to copy state from).
 
 ### `/compact`
 Asks the agent to summarise older messages via its `compact_conversation` tool, freeing up context window space. Runs silently — a dim animated `⎿ Compacting…` placeholder is shown during the operation, then replaced by `⎿ Summarised N messages …` (success) or `⎿ Nothing to compact yet — conversation is within the token budget.` (when the agent's eligibility gate denies because the conversation is too small to be worth compacting).

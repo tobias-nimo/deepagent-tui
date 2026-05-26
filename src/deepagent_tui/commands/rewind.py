@@ -1,4 +1,4 @@
-"""The /fork command — browse conversation history and fork from an earlier point."""
+"""The /rewind command — browse conversation history and rewind to an earlier point."""
 
 from __future__ import annotations
 
@@ -22,8 +22,8 @@ def _extract_text(content) -> str:
     return str(content)
 
 
-@command("fork", "Browse history and fork from an earlier message")
-async def cmd_fork(client, session, args: str) -> None:
+@command("rewind", "Browse history and rewind to an earlier message")
+async def cmd_rewind(client, session, args: str) -> None:
     if not session.thread_id:
         render_error("No active thread.")
         return
@@ -33,7 +33,7 @@ async def cmd_fork(client, session, args: str) -> None:
     except Exception as e:
         msg = str(e)
         if "no assigned graph ID" in msg or "graph_id" in msg.lower():
-            render_error("This thread has no history to fork from (no runs have been made yet).")
+            render_error("This thread has no history to rewind to (no runs have been made yet).")
         else:
             render_error(f"Failed to fetch history: {e}")
         return
@@ -44,7 +44,7 @@ async def cmd_fork(client, session, args: str) -> None:
 
     # Messages removed via RemoveMessage (e.g. /compact's internal prompt) are
     # gone from current state but still live in earlier checkpoints. Restrict
-    # fork candidates to IDs that survived into the latest snapshot so the
+    # rewind candidates to IDs that survived into the latest snapshot so the
     # picker doesn't expose internal prompts the user never sent.
     live_ids: set[str] = set()
     try:
@@ -90,7 +90,7 @@ async def cmd_fork(client, session, args: str) -> None:
         return
 
     # Sort by message position in thread — show every user turn so the
-    # user can fork from any earlier point (picker is filterable).
+    # user can rewind to any earlier point (picker is filterable).
     unique_checkpoints.sort(key=lambda x: x[0])
 
     items = [
@@ -103,7 +103,7 @@ async def cmd_fork(client, session, args: str) -> None:
     ]
     choice = await session.picker(
         items,
-        "Fork from message",
+        "Rewind to message",
         subtitle="Restore the conversation to the point before…",
         search_placeholder="Search messages...",
     )
@@ -119,10 +119,10 @@ async def cmd_fork(client, session, args: str) -> None:
         # Restore to the point *before* the chosen user message — that turn
         # is what the user wants to edit and resend, so drop it (and anything
         # after) from the new thread.
-        fork_messages = messages[:idx]
+        rewind_messages = messages[:idx]
 
         new_thread_id = await client.copy_thread_with_messages(
-            fork_messages, graph_id=session.graph_id,
+            rewind_messages, graph_id=session.graph_id,
         )
 
         session.thread_id = new_thread_id
@@ -131,13 +131,13 @@ async def cmd_fork(client, session, args: str) -> None:
         session.output_tokens = 0
         session.total_cost = 0.0
 
-        # Don't index the fork yet — the stream worker upserts on the next
-        # user message. If the fork is abandoned, it shouldn't take up a
-        # retention slot. Pass a header so `⎿ Forked from message #m.`
+        # Don't index the rewind yet — the stream worker upserts on the next
+        # user message. If the rewind is abandoned, it shouldn't take up a
+        # retention slot. Pass a header so `⎿ Rewound to message #m.`
         # appears above the replayed history.
         await session.replay(
-            fork_messages,
-            header=f"Forked {new_thread_id} from message #{choice + 1}.",
+            rewind_messages,
+            header=f"Rewound to message #{choice + 1} (new thread {new_thread_id}).",
         )
 
         # Pre-fill the chat bar with the selected user message so the user
@@ -148,6 +148,6 @@ async def cmd_fork(client, session, args: str) -> None:
     except Exception as e:
         msg = str(e)
         if "no assigned graph ID" in msg or "graph_id" in msg.lower():
-            render_info("Fork failed: thread has no graph ID. Ensure at least one run has been made before forking.")
+            render_info("Rewind failed: thread has no graph ID. Ensure at least one run has been made before rewinding.")
         else:
-            render_error(f"Fork failed: {e}")
+            render_error(f"Rewind failed: {e}")

@@ -1465,7 +1465,7 @@ class DeepAgentTUI(App):
         subtitle: str | None = None,
         search_placeholder: str | None = None,
     ) -> Any:
-        """Inline list picker for /resume, /fork, and similar commands.
+        """Inline list picker for /resume, /rewind, and similar commands.
         Called from a worker (commands run as workers in the TUI), so it
         can use push_screen_wait directly to suspend the worker until the
         user picks or cancels."""

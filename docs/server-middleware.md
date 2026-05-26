@@ -168,6 +168,6 @@ Or just run `/compact` in the TUI — a non-error outcome line (either `⎿ Summ
 
 ## See also
 
-- [Threads](threads.md) — how `/fork` filters out messages cleaned up by `/compact`
+- [Threads](threads.md) — how `/rewind` filters out messages cleaned up by `/compact`
 - [Commands](commands.md) — the user-facing reference for `/compact`
 - [Configuration](configuration.md) — `DEEPAGENT_WORKSPACE` env var

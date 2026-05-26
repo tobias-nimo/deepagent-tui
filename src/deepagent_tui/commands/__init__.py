@@ -115,10 +115,10 @@ from deepagent_tui.commands import (  # noqa: E402, F401
     compact,
     copy,
     export,
-    fork,
     help,
     new,
     resume,
+    rewind,
     skills,
     theme,
 )

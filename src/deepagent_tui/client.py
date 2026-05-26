@@ -138,8 +138,8 @@ class AgentClient:
         """
         return await self._client.threads.get_history(thread_id, limit=limit)
 
-    async def fork_thread(self, thread_id: str, checkpoint: dict) -> str:
-        """Fork a thread from a specific checkpoint.
+    async def rewind_thread(self, thread_id: str, checkpoint: dict) -> str:
+        """Rewind a thread to a specific checkpoint.
 
         Creates a new thread and copies the state at the given checkpoint.
         """

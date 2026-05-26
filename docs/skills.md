@@ -44,13 +44,13 @@ Skill invocations go through the **same stream worker** as regular messages, not
 
 ## Listing — `/skills`
 
-Opens a full-screen picker (`PickerScreen` in `tui/screens.py`, same widget as `/resume` and `/fork`) listing the currently-registered skills. Type to filter by name or description; ↑↓ to move, Enter to select, Esc to cancel. Selecting a skill fills the chat input with `/<skill-name> ` and focuses it — you can then add arguments and submit, or just press Enter to invoke with no args.
+Opens a full-screen picker (`PickerScreen` in `tui/screens.py`, same widget as `/resume` and `/rewind`) listing the currently-registered skills. Type to filter by name or description; ↑↓ to move, Enter to select, Esc to cancel. Selecting a skill fills the chat input with `/<skill-name> ` and focuses it — you can then add arguments and submit, or just press Enter to invoke with no args.
 
 If nothing has been discovered yet, prints a hint suggesting you send a message and then try `/skills refresh`.
 
 ## Name collisions
 
-Built-in commands take precedence over dynamic skill commands. If a skill is named `commands`, `help`, `status`, `new`, `clear`, `exit`, `threads`, `resume`, `fork`, `export`, `copy`, `theme`, or `skills`, the built-in wins and the skill is unreachable as a slash command (but still loaded server-side).
+Built-in commands take precedence over dynamic skill commands. If a skill is named `commands`, `help`, `status`, `new`, `clear`, `exit`, `threads`, `resume`, `rewind`, `export`, `copy`, `theme`, or `skills`, the built-in wins and the skill is unreachable as a slash command (but still loaded server-side).
 
 ## Implementation pointers
 

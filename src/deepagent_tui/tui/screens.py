@@ -345,7 +345,7 @@ class HelpScreen(Screen[None]):
         ("Skills", "Run /skills to see what the connected agent can do."),
         ("Paste images", "Paste a local image path; it attaches to your next message."),
         ("Resume a thread", "/resume opens a picker of recent threads."),
-        ("Fork from earlier", "/fork branches a new thread from any past user turn."),
+        ("Rewind to earlier", "/rewind branches a new thread from any past user turn."),
         ("Switch theme", "/theme lists themes; /theme <name> applies one."),
     ]
 

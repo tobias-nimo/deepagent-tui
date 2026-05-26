@@ -56,9 +56,9 @@ When dragging from Finder/Files, your terminal needs to paste the path; if it do
 
 `/resume <thread_id>` falls back to a server lookup, so you can still attach to threads that aren't in the local index — they'll be added on the next assistant turn.
 
-## `/fork` fails with "no assigned graph ID"
+## `/rewind` fails with "no assigned graph ID"
 
-Forking copies state from the source thread, and the server needs a `graph_id` on that thread to do it. A brand-new thread that hasn't completed a run yet doesn't have one. Send at least one message before forking.
+Rewinding copies state from the source thread, and the server needs a `graph_id` on that thread to do it. A brand-new thread that hasn't completed a run yet doesn't have one. Send at least one message before rewinding.
 
 ## `/compact` reports `Error executing compact_conversation tool.`
 

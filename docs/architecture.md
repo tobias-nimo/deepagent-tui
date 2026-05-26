@@ -13,7 +13,7 @@ src/deepagent_tui/
 ├── session.py         # Session dataclass — mutable per-run state
 ├── tui/
 │   ├── app.py         # DeepAgentTUI Textual app — the main UI
-│   ├── screens.py     # PickerScreen (/resume, /fork, /skills), HelpScreen (/help), CommandsScreen (/commands), StatusScreen (/status)
+│   ├── screens.py     # PickerScreen (/resume, /rewind, /skills), HelpScreen (/help), CommandsScreen (/commands), StatusScreen (/status)
 │   └── inline_approval.py  # InlineApproval widget for HITL prompts
 ├── ui/
 │   ├── renderer.py    # render_info/render_error/render_renderable — ⎿ corner blocks via a mount sink installed by the TUI
@@ -26,7 +26,7 @@ src/deepagent_tui/
 │   ├── help.py        # /help (opens HelpScreen)
 │   ├── new.py         # /new
 │   ├── resume.py      # /resume
-│   ├── fork.py        # /fork
+│   ├── rewind.py      # /rewind
 │   ├── compact.py     # /compact (TUI intercepts; routes through _submit_compact)
 │   ├── copy.py        # /copy + shared transcript/clipboard helpers
 │   ├── export.py      # /export
@@ -108,7 +108,7 @@ Pressing `Esc` while a stream is in flight calls `_cancel_and_rollback`:
 
 Why a user prompt and not synthetic AIMessage injection? `_is_eligible_for_compaction` reads `usage_metadata.total_tokens` from the latest AIMessage, and langchain's dict-to-message coercion drops `usage_metadata` when a message reaches the server over the wire. A natural model-produced AIMessage carries `usage_metadata` intact; an injected one always reports 0 tokens and the gate always denies. See [server-middleware.md](server-middleware.md#conversation-compaction).
 
-Side effect: `/fork` filters its picker by IDs that still exist in current state, so the internal compact prompt — present in earlier checkpoints but removed from the latest snapshot — doesn't surface in fork candidates.
+Side effect: `/rewind` filters its picker by IDs that still exist in current state, so the internal compact prompt — present in earlier checkpoints but removed from the latest snapshot — doesn't surface in rewind candidates.
 
 ## Deep Agent assumptions
 
