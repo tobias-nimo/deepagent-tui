@@ -21,6 +21,22 @@ _ERR_MARKER = "✗"
 _INDENT = "  "
 _SUBAGENT_PROGRESS_MAX = 3
 
+# /settings → "Tool widgets" toggle. When "condensed", verbose renderers
+# (edit/write diffs, bash output, etc.) collapse to header-only or a single
+# `⎿ N lines` summary. Applies to widgets created after the toggle changes;
+# existing widgets in the transcript aren't retroactively re-rendered.
+_WIDGET_MODE: str = "expanded"
+
+
+def set_widget_mode(mode: str) -> None:
+    global _WIDGET_MODE
+    if mode in ("expanded", "condensed"):
+        _WIDGET_MODE = mode
+
+
+def _condensed() -> bool:
+    return _WIDGET_MODE == "condensed"
+
 
 def _state_marker(state: str) -> tuple[str, str]:
     """Map a call state to (glyph, rich style) for the header marker."""
@@ -152,8 +168,9 @@ def _call_edit(tc: FormattedToolCall, state: str) -> RenderableType:
     # Pending: render the same diff body the result widget would show so the
     # user can review the change before approving. Once the tool returns, the
     # call widget shrinks back to just the header and `_result_edit` takes
-    # over the diff so it doesn't render twice.
-    if state == "pending":
+    # over the diff so it doesn't render twice. In condensed mode we skip
+    # the diff entirely and let the result widget show just `⎿ N lines`.
+    if state == "pending" and not _condensed():
         old_string = str(a.get("old_string", ""))
         new_string = str(a.get("new_string", ""))
         diff_lines = _build_diff_lines(old_string, new_string)
@@ -174,7 +191,7 @@ def _call_write(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     file_path = a.get("file_path") or a.get("path") or ""
     header = _header("Write", file_path if file_path else None, state=state)
-    if state == "pending":
+    if state == "pending" and not _condensed():
         content = str(a.get("content") or a.get("file_text") or "")
         if content:
             lines = content.splitlines() or [""]
@@ -657,10 +674,10 @@ def _result_edit(result: FormattedToolResult, call) -> RenderableType:
         return _corner_inline("applied")
     added = sum(1 for k, _ in diff_lines if k == "+")
     removed = sum(1 for k, _ in diff_lines if k == "-")
-    return _corner_block_with_summary(
-        _added_removed_summary(added, removed),
-        _render_diff_body(diff_lines),
-    )
+    summary = _added_removed_summary(added, removed)
+    if _condensed():
+        return _corner_inline(summary)
+    return _corner_block_with_summary(summary, _render_diff_body(diff_lines))
 
 
 def _result_write(result: FormattedToolResult, call) -> RenderableType:
@@ -674,6 +691,8 @@ def _result_write(result: FormattedToolResult, call) -> RenderableType:
     lines = content.splitlines() or [""]
     n = len(lines)
     summary = f"Added {n} line{'s' if n != 1 else ''}"
+    if _condensed():
+        return _corner_inline(summary)
     shown = lines[:_DIFF_MAX_LINES]
     body = Text()
     for i, line in enumerate(shown):
@@ -731,6 +750,10 @@ def _result_bash(result: FormattedToolResult, call) -> RenderableType:
         header = _result_header(error=error)
         header.append("failed" if error else "done", style="dim")
         return header
+    if _condensed():
+        n = sum(1 for ln in content.splitlines() if ln.strip())
+        label = "failed" if error else f"{n} line{'s' if n != 1 else ''}"
+        return _result_inline(label, error=error)
     body = _truncate_body(content)
     return _corner_block(body)
 
@@ -772,6 +795,9 @@ def _result_ls(result: FormattedToolResult, call) -> RenderableType:
     if result.is_error:
         return _result_inline(result.summary, error=True)
     names = [_basename(e) for e in _parse_listing(result.content or "")]
+    if _condensed():
+        n = len(names)
+        return _corner_inline("(empty)" if n == 0 else f"{n} entr{'ies' if n != 1 else 'y'}")
     out = Text()
     out.append(_INDENT)
     out.append("⎿ ", style="dim")

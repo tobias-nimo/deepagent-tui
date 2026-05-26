@@ -46,6 +46,7 @@ from deepagent_tui.tui.screens import (
     HelpScreen,
     PickerItem,
     PickerScreen,
+    SettingsScreen,
     StatusScreen,
 )
 from deepagent_tui.ui.markdown import render_markdown
@@ -553,6 +554,16 @@ class DeepAgentTUI(App):
             url=settings.langgraph_url, api_key=settings.langsmith_api_key
         )
         self.session = Session()
+        # Hydrate user-tunable config (HITL + tool-widget verbosity) from
+        # ~/.deepagent-tui/config.toml. Theme has its own file and is loaded
+        # by ui.theme on import.
+        from deepagent_tui.storage.config_store import load_config
+        from deepagent_tui.ui.tool_widgets import set_widget_mode as _set_widget_mode
+
+        _cfg = load_config()
+        self.session.hitl_enabled = _cfg.hitl_enabled
+        self.session.tool_widget_mode = _cfg.tool_widget_mode
+        _set_widget_mode(_cfg.tool_widget_mode)
         self._stream_buffer: str = ""
         self._active_slot: Static | None = None
         self._thinking_timer = None
@@ -598,6 +609,7 @@ class DeepAgentTUI(App):
         self.session.show_help = self._tui_show_help
         self.session.show_commands = self._tui_show_commands
         self.session.show_status = self._tui_show_status
+        self.session.show_settings = self._tui_show_settings
         self.session.set_input = self._tui_set_input
         # Route render_info / render_error / render_renderable straight into
         # the message log so each call becomes ONE widget — the multi-line
@@ -1343,12 +1355,19 @@ class DeepAgentTUI(App):
             interrupt = interrupts[0]
             self.session.status = "interrupted"
 
-            # No separate preview: the pending tool widget already shows the
-            # diff/args for the in-flight call. Just attach the inline
-            # approval below it.
-            choice = await self._inline_approve(interrupt)
-            if choice is None:
-                choice = "reject"
+            # /settings HITL toggle off → skip the UI and approve every
+            # action in the interrupt. The server still emits interrupts;
+            # we just feed an approve-all resume value back without
+            # prompting.
+            if not self.session.hitl_enabled:
+                choice = "approve"
+            else:
+                # No separate preview: the pending tool widget already shows
+                # the diff/args for the in-flight call. Just attach the inline
+                # approval below it.
+                choice = await self._inline_approve(interrupt)
+                if choice is None:
+                    choice = "reject"
 
             resume_value = build_resume_value(interrupt, choice, None)
 
@@ -1513,6 +1532,13 @@ class DeepAgentTUI(App):
         ]
         await self.push_screen_wait(StatusScreen(connection, usage))
         render_info("Status dialog dismissed.")
+
+    async def _tui_show_settings(self) -> None:
+        """Push the full-screen settings view. Called from the /settings command worker."""
+        from deepagent_tui.ui.renderer import render_info
+
+        await self.push_screen_wait(SettingsScreen(self.session))
+        render_info("Settings dialog dismissed.")
 
     def _tui_set_input(self, text: str) -> None:
         """Fill the chat input bar with `text` and focus it. Used by pickers

@@ -614,3 +614,288 @@ class StatusScreen(Screen[None]):
         for key, value in rows:
             table.add_row(key, value)
         return table
+
+
+class SettingsScreen(Screen[None]):
+    """Three-tab settings view: Config (interactive), Harness (static),
+    Status (static).
+
+    Tabs are switched with Tab/Shift+Tab. On the Config tab, ↑/↓ move the
+    highlighted row and ←/→ cycle its value; every change is persisted to
+    `~/.deepagent-tui/config.toml` and applied to the live session. Esc /
+    Ctrl+C / q dismisses the screen.
+    """
+
+    DEFAULT_CSS = """
+    SettingsScreen { background: $background; layout: vertical; }
+
+    #settings-root { padding: 1 2; height: 1fr; background: $background; }
+
+    #settings-tabs {
+        height: auto;
+        padding: 0 0 1 0;
+    }
+
+    #settings-body {
+        height: 1fr;
+        background: $background;
+        scrollbar-size: 0 0;
+        padding: 0;
+    }
+
+    #settings-body Static {
+        height: auto;
+        background: $background;
+        color: $text;
+        padding: 0 0 1 0;
+    }
+
+    #settings-footer {
+        height: auto;
+        color: $text-muted;
+        padding: 0;
+    }
+    """
+
+    TABS: tuple[str, ...] = ("Config", "Harness", "Status")
+
+    def __init__(self, session: Any) -> None:
+        super().__init__()
+        self._session = session
+        self._active_tab: int = 0
+        self._selected_row: int = 0
+
+    def _next_tab(self) -> None:
+        self._active_tab = (self._active_tab + 1) % len(self.TABS)
+        self._selected_row = 0
+        self._refresh_all()
+
+    def _prev_tab(self) -> None:
+        self._active_tab = (self._active_tab - 1) % len(self.TABS)
+        self._selected_row = 0
+        self._refresh_all()
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="settings-root"):
+            yield Static("", id="settings-tabs")
+            with VerticalScroll(id="settings-body"):
+                yield Static("", id="settings-content")
+            yield Static("", id="settings-footer")
+
+    async def on_mount(self) -> None:
+        body = self.query_one("#settings-body", VerticalScroll)
+        body.can_focus = False
+        self.can_focus = True
+        self._refresh_all()
+        self.set_focus(None)
+
+    async def on_key(self, event: events.Key) -> None:
+        key = event.key
+        if key in ("escape", "ctrl+c", "q"):
+            event.stop()
+            event.prevent_default()
+            self.dismiss(None)
+            return
+
+        # Tab cycling. Tab itself is claimed by the app's autocomplete
+        # priority binding, so we use ] / [ (next/prev) — and accept
+        # tab / shift+tab as aliases for users whose terminals route them
+        # through to the screen anyway.
+        if key in ("]", "tab"):
+            event.stop()
+            event.prevent_default()
+            self._next_tab()
+            return
+        if key in ("[", "shift+tab"):
+            event.stop()
+            event.prevent_default()
+            self._prev_tab()
+            return
+
+        # Config-tab-only interaction.
+        if self._active_tab != 0:
+            return
+
+        rows = self._config_rows()
+        if not rows:
+            return
+
+        if key in ("up", "k"):
+            event.stop()
+            event.prevent_default()
+            self._selected_row = (self._selected_row - 1) % len(rows)
+            self._refresh_body()
+            return
+        if key in ("down", "j"):
+            event.stop()
+            event.prevent_default()
+            self._selected_row = (self._selected_row + 1) % len(rows)
+            self._refresh_body()
+            return
+        if key in ("left", "h"):
+            event.stop()
+            event.prevent_default()
+            self._cycle_current(-1)
+            return
+        if key in ("right", "l", "space"):
+            event.stop()
+            event.prevent_default()
+            self._cycle_current(+1)
+            return
+
+    # ── rendering ──────────────────────────────────────────────────────────
+
+    def _refresh_all(self) -> None:
+        self._refresh_tabs()
+        self._refresh_body()
+        self._refresh_footer()
+
+    def _refresh_tabs(self) -> None:
+        accent = _theme.current_theme().accent
+        line = Text()
+        for i, name in enumerate(self.TABS):
+            if i:
+                line.append("   ", style="dim")
+            if i == self._active_tab:
+                line.append(f" {name} ", style=f"bold reverse {accent}")
+            else:
+                line.append(f" {name} ", style="dim")
+        self.query_one("#settings-tabs", Static).update(line)
+
+    def _refresh_body(self) -> None:
+        content = self.query_one("#settings-content", Static)
+        if self._active_tab == 0:
+            content.update(self._render_config())
+        elif self._active_tab == 1:
+            content.update(self._render_harness())
+        else:
+            content.update(self._render_status())
+
+    def _refresh_footer(self) -> None:
+        if self._active_tab == 0:
+            hint = "↑↓ select  ·  ←→ change  ·  [ ] switch tab  ·  Esc close"
+        else:
+            hint = "[ ] switch tab  ·  Esc close"
+        self.query_one("#settings-footer", Static).update(hint)
+
+    # ── config tab ─────────────────────────────────────────────────────────
+
+    def _config_rows(self) -> list[tuple[str, str]]:
+        from deepagent_tui.ui.theme import current_theme
+
+        return [
+            ("HITL", "on" if self._session.hitl_enabled else "off"),
+            ("Tool widgets", self._session.tool_widget_mode),
+            ("Theme", current_theme().name),
+        ]
+
+    def _render_config(self) -> RenderableType:
+        rows = self._config_rows()
+        accent = _theme.current_theme().accent
+        label_width = max(len(label) for label, _ in rows) + 2
+        out = Text()
+        for i, (label, value) in enumerate(rows):
+            if i:
+                out.append("\n")
+            selected = i == self._selected_row
+            if selected:
+                out.append("❯ ", style=f"bold {accent}")
+                out.append(label.ljust(label_width), style=f"bold {accent}")
+                out.append(value, style=f"bold {accent}")
+            else:
+                out.append("  ")
+                out.append(label.ljust(label_width), style="bold")
+                out.append(value, style="dim")
+        return out
+
+    def _cycle_current(self, delta: int) -> None:
+        from deepagent_tui.storage.config_store import UserConfig, save_config
+        from deepagent_tui.ui.theme import (
+            available_themes,
+            current_theme,
+            persist_theme,
+            set_theme,
+        )
+
+        idx = self._selected_row
+        if idx == 0:
+            self._session.hitl_enabled = not self._session.hitl_enabled
+            save_config(
+                UserConfig(
+                    hitl_enabled=self._session.hitl_enabled,
+                    tool_widget_mode=self._session.tool_widget_mode,  # type: ignore[arg-type]
+                )
+            )
+        elif idx == 1:
+            modes = ("expanded", "condensed")
+            current = self._session.tool_widget_mode
+            try:
+                pos = modes.index(current)
+            except ValueError:
+                pos = 0
+            new_mode = modes[(pos + delta) % len(modes)]
+            self._session.tool_widget_mode = new_mode
+            # Mirror into the tool_widgets module so future renderers honor it.
+            from deepagent_tui.ui.tool_widgets import set_widget_mode
+
+            set_widget_mode(new_mode)
+            save_config(
+                UserConfig(
+                    hitl_enabled=self._session.hitl_enabled,
+                    tool_widget_mode=new_mode,  # type: ignore[arg-type]
+                )
+            )
+        elif idx == 2:
+            names = available_themes()
+            try:
+                pos = names.index(current_theme().name)
+            except ValueError:
+                pos = 0
+            new_name = names[(pos + delta) % len(names)]
+            set_theme(new_name)
+            persist_theme(new_name)
+
+        self._refresh_tabs()
+        self._refresh_body()
+
+    # ── harness tab ────────────────────────────────────────────────────────
+
+    def _render_harness(self) -> RenderableType:
+        rows = [
+            ("Model", self._session.model or "unknown"),
+            ("Skills", "Run /skills to see available capabilities"),
+        ]
+        return _static_table(rows)
+
+    # ── status tab ─────────────────────────────────────────────────────────
+
+    def _render_status(self) -> RenderableType:
+        from deepagent_tui.config import settings as _settings
+        from deepagent_tui.utils.cost import format_cost, format_tokens
+
+        s = self._session
+        rows = [
+            ("Server", _settings.langgraph_url),
+            ("Graph", s.graph_id or "not connected"),
+            ("Assistant", s.assistant_id or "not connected"),
+            ("Thread", s.thread_id or "none"),
+            ("Model", s.model or "unknown"),
+            ("Status", s.status),
+            (
+                "Tokens",
+                f"{format_tokens(s.input_tokens)} in / {format_tokens(s.output_tokens)} out",
+            ),
+            ("Cost", format_cost(s.total_cost)),
+        ]
+        return _static_table(rows)
+
+
+def _static_table(rows: list[tuple[str, str]]) -> Table:
+    """Two-column key/value table shared by the static settings tabs."""
+    width = max(len(k) for k, _ in rows) + 1
+    table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
+    table.add_column("label", style=f"bold {_theme.ACCENT_COLOR}", min_width=width)
+    table.add_column("value", style="dim", overflow="fold")
+    for key, value in rows:
+        table.add_row(key, value)
+    return table

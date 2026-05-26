@@ -96,3 +96,69 @@ async def test_connect_failure_does_not_crash_app(monkeypatch: pytest.MonkeyPatc
         # schedules an exit, it doesn't crash the layout.
         app.query_one(ChatBar)
         app.query_one(StatusBar)
+
+
+async def test_settings_screen_mounts_and_switches_tabs() -> None:
+    """SettingsScreen mounts with three tabs and `_next_tab` cycles through
+    them. We call the screen method directly because Pilot's key dispatch
+    doesn't reliably route through Screen.on_key when no widget is focused
+    on the screen — the logic we're verifying is the tab-cycling state
+    machine, not Textual's event plumbing."""
+    from deepagent_tui.tui.screens import SettingsScreen
+
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen = SettingsScreen(app.session)
+        await app.push_screen(screen)
+        await pilot.pause()
+
+        assert screen._active_tab == 0
+        assert screen.TABS == ("Config", "Harness", "Status")
+        screen._next_tab()
+        assert screen._active_tab == 1
+        screen._next_tab()
+        assert screen._active_tab == 2
+        screen._next_tab()
+        assert screen._active_tab == 0  # wraps
+        screen._prev_tab()
+        assert screen._active_tab == 2  # wraps backwards
+
+
+async def test_config_toggle_persists(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """`_cycle_current` on the HITL row flips session state and round-trips
+    through the on-disk config file. Uses a tmp config dir so the user's
+    real config is never touched."""
+    from deepagent_tui.storage import config_store
+    from deepagent_tui.tui.screens import SettingsScreen
+
+    cfg_dir = tmp_path / ".deepagent-tui"
+    monkeypatch.setattr(config_store, "_CONFIG_DIR", cfg_dir)
+    monkeypatch.setattr(config_store, "_CONFIG_FILE", cfg_dir / "config.toml")
+
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        initial_hitl = app.session.hitl_enabled
+        screen = SettingsScreen(app.session)
+        await app.push_screen(screen)
+        await pilot.pause()
+
+        # Highlight defaults to row 0 (HITL).
+        assert screen._selected_row == 0
+        screen._cycle_current(+1)
+        assert app.session.hitl_enabled != initial_hitl
+
+        loaded = config_store.load_config()
+        assert loaded.hitl_enabled == app.session.hitl_enabled
+
+        # Cycling the Tool widgets row writes the new mode and propagates
+        # to the module-level flag used by renderers.
+        from deepagent_tui.ui import tool_widgets as tw
+
+        screen._selected_row = 1
+        before_mode = app.session.tool_widget_mode
+        screen._cycle_current(+1)
+        assert app.session.tool_widget_mode != before_mode
+        assert tw._WIDGET_MODE == app.session.tool_widget_mode
+        assert config_store.load_config().tool_widget_mode == app.session.tool_widget_mode

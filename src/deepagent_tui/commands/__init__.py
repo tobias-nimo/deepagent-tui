@@ -119,6 +119,7 @@ from deepagent_tui.commands import (  # noqa: E402, F401
     new,
     resume,
     rewind,
+    settings,
     skills,
     theme,
 )
