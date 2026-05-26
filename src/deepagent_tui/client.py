@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Any
-from uuid import uuid4
 
 from langgraph_sdk import get_client
 
@@ -161,32 +160,32 @@ class AgentClient:
         await self._client.threads.delete(thread_id)
 
     async def compact_thread(self, thread_id: str, assistant_id: str):
-        """Invoke the agent's `compact_conversation` tool directly.
+        """Ask the agent to invoke its `compact_conversation` tool.
 
-        Injects a synthetic AIMessage carrying a `compact_conversation` tool
-        call as if the model had produced it (`as_node="model"`), then streams
-        a no-input run so the graph routes through the tools node and back.
-        Requires `SummarizationToolMiddleware` to be registered on the server.
+        We send a focused user prompt rather than injecting a synthetic
+        AIMessage via `update_state`. Reason: the eligibility gate at
+        `SummarizationToolMiddleware._is_eligible_for_compaction` reads
+        `usage_metadata.total_tokens` from the most recent AIMessage, and
+        langchain's dict-to-message coercion (`_create_message_from_message_
+        type`) hoists `response_metadata` to the top level but lumps
+        `usage_metadata` into `additional_kwargs` — there is no wire format
+        that preserves it. So an injected message always reports 0 tokens
+        and the gate always denies. Routing through a user prompt lets the
+        model produce the tool call itself, with its real `usage_metadata`
+        attached, and the gate sees the conversation's true token count.
 
-        Yields the same event types as `stream_message`.
+        Yields the same event types as `stream_message`. Requires
+        `SummarizationToolMiddleware` to be registered on the server.
         """
-        tool_call_id = f"compact-{uuid4().hex[:12]}"
-        ai_msg = {
-            "type": "ai",
-            "content": "",
-            "tool_calls": [
-                {"id": tool_call_id, "name": "compact_conversation", "args": {}}
-            ],
-        }
-        await self._client.threads.update_state(
-            thread_id=thread_id,
-            values={"messages": [ai_msg]},
-            as_node="model",
+        prompt = (
+            "Invoke the compact_conversation tool now to summarise older "
+            "messages. Call it directly with no arguments — do not respond "
+            "with text first."
         )
         async for chunk in self._client.runs.stream(
             thread_id=thread_id,
             assistant_id=assistant_id,
-            input=None,
+            input={"messages": [{"role": "user", "content": prompt}]},
             stream_mode=["updates", "messages"],
             stream_subgraphs=True,
         ):
