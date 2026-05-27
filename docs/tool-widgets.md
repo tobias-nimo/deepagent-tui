@@ -39,6 +39,10 @@ Dispatch normalizes tool names through `_tool_alias` so different conventions la
 | `task` (subagent) | `task`, `delegate`, `create_task`, `spawn_agent` | **Subagent** — `subagent_type`, plus rolling `⎿` progress lines for inner tool calls; result body suppressed (parent re-summarizes) |
 | (anything else) | — | **Generic** — name + truncated args; result is the truncated content |
 
+## Sticky plan card
+
+When the agent calls `write_todos`, a **PlanCard** is also pinned above the chat bar showing the same todo list. It stays there across turns until every todo is `completed` or `skipped/cancelled` — then it auto-hides. `/clear`, `/new`, and `/resume` also clear it. While the card is visible, the inline `write_todos` widget in the scroll log is collapsed (`.-plan-suppressed`) so the plan doesn't double-render. The card is hidden alongside the chat bar during HITL approval prompts. See `PlanCard` in `tui/app.py` and `render_todos_widget` / `todos_all_completed` in `ui/tool_widgets.py`.
+
 ## Result suppression
 
 Two tools opt out of rendering their result body:
