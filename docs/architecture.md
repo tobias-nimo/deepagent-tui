@@ -13,7 +13,7 @@ src/deepagent_tui/
 ├── session.py         # Session dataclass — mutable per-run state
 ├── tui/
 │   ├── app.py         # DeepAgentTUI Textual app — the main UI
-│   ├── screens.py     # PickerScreen (/resume, /rewind, /skills), HelpScreen (/help), CommandsScreen (/commands), SettingsScreen (/settings)
+│   ├── screens.py     # PickerScreen (/resume, /rewind, /skills), HelpScreen (/help, 4-tab modal), SettingsScreen (/settings)
 │   └── inline_approval.py  # InlineApproval widget for HITL prompts
 ├── ui/
 │   ├── renderer.py    # render_info/render_error/render_renderable — ⎿ corner blocks via a mount sink installed by the TUI
@@ -22,7 +22,7 @@ src/deepagent_tui/
 │   └── theme.py       # 8 themes + persistence + markdown style overrides
 ├── commands/
 │   ├── __init__.py    # @command registry + dispatch
-│   ├── builtins.py    # /commands (CommandsScreen) /clear /exit
+│   ├── builtins.py    # /clear /exit
 │   ├── help.py        # /help (opens HelpScreen)
 │   ├── new.py         # /new
 │   ├── resume.py      # /resume

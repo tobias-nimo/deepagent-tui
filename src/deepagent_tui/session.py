@@ -34,7 +34,6 @@ class Session:
     picker: Any = None  # async (options: list[str], title: str | None) -> str | None — set by TUI
     replay: Any = None  # async (messages: list[dict]) -> None — set by TUI to clear and re-render past messages on /resume
     show_help: Any = None  # async () -> None — set by TUI; pushes the help screen
-    show_commands: Any = None  # async () -> None — set by TUI; pushes the commands screen
     show_settings: Any = None  # async () -> None — set by TUI; pushes the settings screen
     set_input: Any = None  # (text: str) -> None — set by TUI; fills the chat input bar and focuses it
     rerender_tool_widgets: Any = None  # () -> None — set by TUI; re-renders existing tool widgets after /settings flips the widget mode

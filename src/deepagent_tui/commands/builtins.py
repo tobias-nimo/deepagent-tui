@@ -1,19 +1,11 @@
-"""Built-in commands: /commands, /clear, /exit."""
+"""Built-in commands: /clear, /exit."""
 
 from __future__ import annotations
 
 import sys
 
 from deepagent_tui.commands import command
-from deepagent_tui.ui.renderer import console, render_error, render_info
-
-
-@command("commands", "Show available commands")
-async def cmd_commands(client, session, args: str) -> None:
-    if session.show_commands is None:
-        render_error("Commands screen is not available outside the TUI.")
-        return
-    await session.show_commands()
+from deepagent_tui.ui.renderer import console, render_info
 
 
 @command("clear", "Clear the terminal screen")

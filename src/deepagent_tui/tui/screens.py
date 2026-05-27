@@ -289,21 +289,28 @@ class PickerScreen(Screen[Any]):
             self.call_after_refresh(container.scroll_to_widget, widget, animate=False)
 
 
-class HelpScreen(Screen[None]):
-    """Full-screen help view: keyboard shortcuts and tips.
+class HelpScreen(ModalScreen[None]):
+    """Four-tab help view: Help (welcome + getting started), Keyboard
+    (shortcuts), Tips (workflow hints), Commands (built-in slash commands).
 
-    Static content (no selection); dismissed with Esc / Ctrl+C / q.
+    Same bottom-docked modal styling as `SettingsScreen` so the chat stays
+    partially visible behind the panel. Tab / Shift+Tab (also `]` / `[`)
+    cycles tabs; Esc / Ctrl+C / q closes.
     """
 
     DEFAULT_CSS = """
-    HelpScreen { background: $background; layout: vertical; }
+    HelpScreen { background: $surface 70%; }
 
-    #help-root { padding: 1 2; height: 1fr; background: $background; }
+    #help-root {
+        dock: bottom;
+        padding: 1 2;
+        height: 60%;
+        background: $background;
+        border: round #4b5563;
+    }
 
-    #help-title {
+    #help-tabs {
         height: auto;
-        color: $text;
-        text-style: bold;
         padding: 0 0 1 0;
     }
 
@@ -328,6 +335,8 @@ class HelpScreen(Screen[None]):
     }
     """
 
+    TABS: tuple[str, ...] = ("Help", "Keyboard", "Tips", "Commands")
+
     SHORTCUTS: list[tuple[str, str]] = [
         ("Enter", "Send the current message"),
         ("Shift+Enter", "Insert a newline (multi-line input)"),
@@ -341,7 +350,7 @@ class HelpScreen(Screen[None]):
     ]
 
     TIPS: list[tuple[str, str]] = [
-        ("Slash commands", "Type / to browse commands, or /commands for the full list."),
+        ("Slash commands", "Type / to browse commands with autocomplete."),
         ("Skills", "Run /skills to see what the connected agent can do."),
         ("Paste images", "Paste a local image path; it attaches to your next message."),
         ("Resume a thread", "/resume opens a picker of recent threads."),
@@ -349,50 +358,143 @@ class HelpScreen(Screen[None]):
         ("Switch theme", "/theme lists themes; /theme <name> applies one."),
     ]
 
+    def __init__(self, builtins: dict[str, str]) -> None:
+        super().__init__()
+        self._builtins = builtins
+        self._active_tab: int = 0
+
     def compose(self) -> ComposeResult:
         with Vertical(id="help-root"):
-            yield Static("", id="help-title")
+            yield Static("", id="help-tabs")
             with VerticalScroll(id="help-body"):
-                yield Static(self._section("Getting started"))
-                yield Static(Text("Type a message and press Enter to chat with the agent.", style="dim"))
-                yield Static(self._section("Keyboard shortcuts"))
-                yield Static(self._table(self.SHORTCUTS))
-                yield Static(self._section("Tips"))
-                yield Static(self._table(self.TIPS))
-            yield Static("Esc to close", id="help-footer")
+                yield Static("", id="help-content")
+            yield Static("", id="help-footer")
 
     async def on_mount(self) -> None:
         body = self.query_one("#help-body", VerticalScroll)
         body.can_focus = False
         self.can_focus = True
-        self.query_one("#help-title", Static).update(Text("Help", style="bold"))
+        self._refresh_all()
         self.set_focus(None)
 
     async def on_key(self, event: events.Key) -> None:
-        if event.key in ("escape", "ctrl+c", "q"):
+        key = event.key
+        if key in ("escape", "ctrl+c", "q"):
             event.stop()
             event.prevent_default()
             self.dismiss(None)
             return
-        if event.key in ("up", "k"):
-            self.query_one("#help-body", VerticalScroll).scroll_up(animate=False)
+
+        # Tab cycling — match SettingsScreen: Tab is normally claimed by the
+        # app's autocomplete priority binding, so `]` / `[` are the primary
+        # bindings and `tab` / `shift+tab` are aliases.
+        if key in ("]", "tab"):
+            event.stop()
+            event.prevent_default()
+            self._active_tab = (self._active_tab + 1) % len(self.TABS)
+            self._refresh_all()
             return
-        if event.key in ("down", "j"):
-            self.query_one("#help-body", VerticalScroll).scroll_down(animate=False)
-            return
-        if event.key == "pageup":
-            self.query_one("#help-body", VerticalScroll).scroll_page_up(animate=False)
-            return
-        if event.key == "pagedown":
-            self.query_one("#help-body", VerticalScroll).scroll_page_down(animate=False)
+        if key in ("[", "shift+tab"):
+            event.stop()
+            event.prevent_default()
+            self._active_tab = (self._active_tab - 1) % len(self.TABS)
+            self._refresh_all()
             return
 
-    @staticmethod
-    def _section(title: str) -> Text:
-        return Text(title, style=f"bold {_theme.ACCENT_COLOR}")
+        body = self.query_one("#help-body", VerticalScroll)
+        if key in ("up", "k"):
+            body.scroll_up(animate=False)
+            return
+        if key in ("down", "j"):
+            body.scroll_down(animate=False)
+            return
+        if key == "pageup":
+            body.scroll_page_up(animate=False)
+            return
+        if key == "pagedown":
+            body.scroll_page_down(animate=False)
+            return
+
+    # ── rendering ──────────────────────────────────────────────────────────
+
+    def _refresh_all(self) -> None:
+        self._refresh_tabs()
+        self._refresh_body()
+        self.query_one("#help-footer", Static).update(
+            "Shift+Tab to switch tabs  ·  Esc close"
+        )
+
+    def _refresh_tabs(self) -> None:
+        accent = _theme.current_theme().accent
+        line = Text()
+        for i, name in enumerate(self.TABS):
+            if i:
+                line.append("   ", style="dim")
+            if i == self._active_tab:
+                line.append(f" {name} ", style=f"bold reverse {accent}")
+            else:
+                line.append(f" {name} ", style="dim")
+        self.query_one("#help-tabs", Static).update(line)
+
+    def _refresh_body(self) -> None:
+        content = self.query_one("#help-content", Static)
+        if self._active_tab == 0:
+            content.update(self._render_help())
+        elif self._active_tab == 1:
+            content.update(self._render_table(self.SHORTCUTS))
+        elif self._active_tab == 2:
+            content.update(self._render_table(self.TIPS))
+        else:
+            content.update(self._render_commands())
+        self.query_one("#help-body", VerticalScroll).scroll_home(animate=False)
+
+    def _render_help(self) -> RenderableType:
+        accent = _theme.current_theme().accent
+        welcome = Text()
+        welcome.append("Welcome to deepagent-tui!", style=f"bold {accent}")
+        welcome.append(
+            "\n\nThis is a terminal client for ",
+            style="dim",
+        )
+        welcome.append("LangGraph deep agents", style=f"bold {accent}")
+        welcome.append(
+            " — agents that plan with todos, delegate to subagents, invoke "
+            "skills, and pause for human approval on sensitive tool calls. "
+            "The TUI streams the agent's response as it happens and renders "
+            "each tool call inline so you can follow what it is doing.",
+            style="dim",
+        )
+
+        getting_started = Text()
+        getting_started.append("Getting started", style=f"bold {accent}")
+        getting_started.append(
+            "\n\n• Type a message and press Enter to chat with the agent.",
+            style="dim",
+        )
+        getting_started.append(
+            "\n• Type / to browse slash commands with autocomplete.",
+            style="dim",
+        )
+        getting_started.append(
+            "\n• Open the ", style="dim"
+        )
+        getting_started.append("Commands", style=f"bold {accent}")
+        getting_started.append(
+            " tab here for the full list, or the ",
+            style="dim",
+        )
+        getting_started.append("Keyboard", style=f"bold {accent}")
+        getting_started.append(
+            " tab for shortcuts.", style="dim"
+        )
+        getting_started.append(
+            "\n• Press Esc during a run to cancel it.", style="dim"
+        )
+
+        return Group(welcome, Text(""), getting_started)
 
     @staticmethod
-    def _table(rows: list[tuple[str, str]]) -> Table:
+    def _render_table(rows: list[tuple[str, str]]) -> Table:
         width = max(len(k) for k, _ in rows) + 1
         table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
         table.add_column("key", style=f"bold {_theme.ACCENT_COLOR}", min_width=width)
@@ -401,120 +503,24 @@ class HelpScreen(Screen[None]):
             table.add_row(key, desc)
         return table
 
+    def _render_commands(self) -> RenderableType:
+        if not self._builtins:
+            return Text("No commands registered.", style="dim")
+        rows = [(f"/{name}", desc or "—") for name, desc in sorted(self._builtins.items())]
+        table = self._render_table(rows)
 
-class CommandsScreen(Screen[None]):
-    """Full-screen list of available slash commands.
-
-    Static content (no selection); dismissed with Esc / Ctrl+C / q.
-    """
-
-    DEFAULT_CSS = """
-    CommandsScreen { background: $background; layout: vertical; }
-
-    #commands-root { padding: 1 2; height: 1fr; background: $background; }
-
-    #commands-title {
-        height: auto;
-        color: $text;
-        text-style: bold;
-        padding: 0 0 1 0;
-    }
-
-    #commands-body {
-        height: 1fr;
-        background: $background;
-        scrollbar-size: 0 0;
-        padding: 0;
-    }
-
-    #commands-body Static {
-        height: auto;
-        background: $background;
-        color: $text;
-        padding: 0 0 1 0;
-    }
-
-    #commands-footer {
-        height: auto;
-        color: $text-muted;
-        padding: 0;
-    }
-    """
-
-    def __init__(self, builtins: dict[str, str]) -> None:
-        super().__init__()
-        self._builtins = builtins
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="commands-root"):
-            yield Static("", id="commands-title")
-            with VerticalScroll(id="commands-body"):
-                if self._builtins:
-                    yield Static(self._section("Built-in"))
-                    yield Static(self._table(self._rows(self._builtins)))
-                else:
-                    yield Static(Text("No commands registered.", style="dim"))
-                yield Static(self._section("Skills"))
-                yield Static(self._skills_note())
-            yield Static("Esc to close", id="commands-footer")
-
-    async def on_mount(self) -> None:
-        body = self.query_one("#commands-body", VerticalScroll)
-        body.can_focus = False
-        self.can_focus = True
-        self.query_one("#commands-title", Static).update(Text("Commands", style="bold"))
-        self.set_focus(None)
-
-    async def on_key(self, event: events.Key) -> None:
-        if event.key in ("escape", "ctrl+c", "q"):
-            event.stop()
-            event.prevent_default()
-            self.dismiss(None)
-            return
-        if event.key in ("up", "k"):
-            self.query_one("#commands-body", VerticalScroll).scroll_up(animate=False)
-            return
-        if event.key in ("down", "j"):
-            self.query_one("#commands-body", VerticalScroll).scroll_down(animate=False)
-            return
-        if event.key == "pageup":
-            self.query_one("#commands-body", VerticalScroll).scroll_page_up(animate=False)
-            return
-        if event.key == "pagedown":
-            self.query_one("#commands-body", VerticalScroll).scroll_page_down(animate=False)
-            return
-
-    @staticmethod
-    def _rows(cmds: dict[str, str]) -> list[tuple[str, str]]:
-        return [(f"/{name}", desc or "—") for name, desc in sorted(cmds.items())]
-
-    @staticmethod
-    def _section(title: str) -> Text:
-        return Text(title, style=f"bold {_theme.ACCENT_COLOR}")
-
-    @staticmethod
-    def _skills_note() -> Text:
         accent = _theme.current_theme().accent
-        note = Text(style="dim")
-        note.append(
-            "Skills are agent-specific capabilities exposed by the connected server. "
-            "Invoke one as "
+        skills_heading = Text("\nSkills", style=f"bold {accent}")
+        skills_note = Text(style="dim")
+        skills_note.append(
+            "\nSkills are agent-specific capabilities exposed by the "
+            "connected server. Invoke one as "
         )
-        note.append("/<skill-name>", style=f"bold {accent}")
-        note.append(" (with optional arguments). Run ")
-        note.append("/skills", style=f"bold {accent}")
-        note.append(" to see what the current agent can do.")
-        return note
-
-    @staticmethod
-    def _table(rows: list[tuple[str, str]]) -> Table:
-        width = max(len(k) for k, _ in rows) + 1
-        table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
-        table.add_column("name", style=f"bold {_theme.ACCENT_COLOR}", min_width=width)
-        table.add_column("desc", style="dim", overflow="fold")
-        for key, desc in rows:
-            table.add_row(key, desc)
-        return table
+        skills_note.append("/<skill-name>", style=f"bold {accent}")
+        skills_note.append(" (with optional arguments). Run ")
+        skills_note.append("/skills", style=f"bold {accent}")
+        skills_note.append(" to see what the current agent can do.")
+        return Group(table, skills_heading, skills_note)
 
 
 class SettingsScreen(ModalScreen[None]):

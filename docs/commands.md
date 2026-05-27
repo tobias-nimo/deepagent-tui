@@ -4,11 +4,13 @@ All commands start with `/` and have tab-completion. While typing a slash comman
 
 ## Session
 
-### `/commands`
-Opens a full-screen list of built-in commands (`CommandsScreen` in `tui/screens.py`). The screen ends with a short note explaining that skills are invoked as `/<skill-name>` and pointing to `/skills` to see what the current agent exposes. Esc / Ctrl+C / q closes it; up/down/PageUp/PageDown scroll.
-
 ### `/help`
-Opens a full-screen help view (`HelpScreen` in `tui/screens.py`) with keyboard shortcuts and tips. Esc / Ctrl+C / q closes it; up/down/PageUp/PageDown scroll. Same modal-screen pattern as `/commands`, `/resume`, and `/rewind`.
+Opens a four-tab modal docked to the bottom 60% of the screen (`HelpScreen` in `tui/screens.py`). `Shift+Tab` / `Tab` (also `[` / `]`) cycles tabs; `Esc` / `Ctrl+C` / `q` closes.
+
+- **Help** — friendly welcome plus a short overview of the TUI and deep agents, followed by getting-started instructions.
+- **Keyboard** — keyboard shortcuts (Enter / Shift+Enter / Tab / Esc / Ctrl+L / Ctrl+C / PageUp / PageDown / arrow scrolling).
+- **Tips** — quick workflow hints (slash commands, skills, image paste, /resume, /rewind, /theme).
+- **Commands** — the full list of built-in slash commands (name + description), followed by a short note explaining that skills are invoked as `/<skill-name>` and pointing to `/skills` to see what the current agent exposes.
 
 ### `/new`
 Clears the previous conversation, asks the server for a fresh thread, and resets the session counters (tokens, cost, local messages). The transcript keeps just the `❯ /new` submission and a `⎿ New thread: <id>` acknowledgment so there's a visible trace of what happened.
@@ -118,4 +120,4 @@ async def cmd_ping(client, session, args: str) -> None:
 
 Then add the module to the side-effect import block at the bottom of `commands/__init__.py` so the decorator fires on startup.
 
-Output should go through `render_info` / `render_error` (from `ui/renderer.py`). Each call renders as a single Textual widget under a dim `⎿` corner — `render_info` paints the body dim, `render_error` paints it red. Multi-line strings share one `⎿` with subsequent lines aligned under the first. To inline an arbitrary Rich renderable (e.g. a `Table`), use `render_renderable`. Full-screen modal hooks (`/help`, `/commands`, `/settings`) call `render_info("<Name> dialog dismissed.")` after `push_screen_wait` returns. The mount sink is installed by `tui/app.py` on startup; in CLI mode (no sink) the same calls fall through to the shared rich console.
+Output should go through `render_info` / `render_error` (from `ui/renderer.py`). Each call renders as a single Textual widget under a dim `⎿` corner — `render_info` paints the body dim, `render_error` paints it red. Multi-line strings share one `⎿` with subsequent lines aligned under the first. To inline an arbitrary Rich renderable (e.g. a `Table`), use `render_renderable`. Full-screen modal hooks (`/help`, `/settings`) call `render_info("<Name> dialog dismissed.")` after `push_screen_wait` returns. The mount sink is installed by `tui/app.py` on startup; in CLI mode (no sink) the same calls fall through to the shared rich console.

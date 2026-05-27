@@ -2,8 +2,8 @@
 
 The TUI intercepts this command in `_run_command` and routes through the
 streaming pipeline (mirrors the dynamic-skill branch). This stub handler
-exists so the command appears in autocomplete and `/commands`; it only runs
-if invoked outside the TUI.
+exists so the command appears in autocomplete and in /help's Commands
+tab; it only runs if invoked outside the TUI.
 """
 
 from __future__ import annotations

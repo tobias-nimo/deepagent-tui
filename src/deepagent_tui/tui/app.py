@@ -42,7 +42,6 @@ from deepagent_tui.session import Session
 from deepagent_tui.storage.db import upsert_thread
 from deepagent_tui.tui.inline_approval import InlineApproval
 from deepagent_tui.tui.screens import (
-    CommandsScreen,
     HelpScreen,
     PickerItem,
     PickerScreen,
@@ -396,10 +395,11 @@ class DeepAgentTUI(App):
         scrollbar-size: 0 0;
     }
 
-    /* Re-assert SettingsScreen's dimmed backdrop here — the bare
-       `Screen` rule above otherwise wins the cascade against the modal's
-       own DEFAULT_CSS (same specificity, App CSS loads later). */
+    /* Re-assert the modals' dimmed backdrops here — the bare `Screen`
+       rule above otherwise wins the cascade against each modal's own
+       DEFAULT_CSS (same specificity, App CSS loads later). */
     SettingsScreen { background: $surface 70%; }
+    HelpScreen { background: $surface 70%; }
 
     #main {
         height: 1fr;
@@ -622,7 +622,6 @@ class DeepAgentTUI(App):
         self.session.picker = self._tui_pick
         self.session.replay = self._replay_thread
         self.session.show_help = self._tui_show_help
-        self.session.show_commands = self._tui_show_commands
         self.session.show_settings = self._tui_show_settings
         self.session.set_input = self._tui_set_input
         self.session.rerender_tool_widgets = self._rerender_tool_widgets
@@ -1546,19 +1545,12 @@ class DeepAgentTUI(App):
         return await self.push_screen_wait(PickerScreen(items, heading, **kwargs))
 
     async def _tui_show_help(self) -> None:
-        """Push the full-screen help view. Called from the /help command worker."""
-        from deepagent_tui.ui.renderer import render_info
-
-        await self.push_screen_wait(HelpScreen())
-        render_info("Help dialog dismissed.")
-
-    async def _tui_show_commands(self) -> None:
-        """Push the full-screen commands view. Called from the /commands command worker."""
+        """Push the four-tab help modal. Called from the /help command worker."""
         from deepagent_tui.commands import builtin_commands
         from deepagent_tui.ui.renderer import render_info
 
-        await self.push_screen_wait(CommandsScreen(builtin_commands()))
-        render_info("Commands dialog dismissed.")
+        await self.push_screen_wait(HelpScreen(builtin_commands()))
+        render_info("Help dialog dismissed.")
 
     async def _tui_show_settings(self) -> None:
         """Push the full-screen settings view. Called from the /settings command worker."""
