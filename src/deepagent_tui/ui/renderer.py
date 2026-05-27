@@ -17,7 +17,7 @@ from rich.text import Text
 console = Console()
 
 _INDENT = "  "
-_CORNER_ALIGN = _INDENT + "   "  # 5 spaces — aligns under text after "⎿  "
+_CORNER_ALIGN = _INDENT + "  "  # 4 spaces — aligns under text after "⎿ "
 
 _mount_sink: Callable[[RenderableType], None] | None = None
 
@@ -44,7 +44,7 @@ def _corner_block(message: str, *, style: str) -> Text:
             out.append(_CORNER_ALIGN)
             out.append(ln, style=style)
         else:
-            out.append("  " + ln, style=style)
+            out.append(" " + ln, style=style)
     return out
 
 
