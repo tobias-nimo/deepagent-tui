@@ -221,7 +221,7 @@ def _call_write(tc: FormattedToolCall, state: str) -> RenderableType:
             if extra > 0:
                 body.append("\n")
                 body.append(
-                    f"… (+{extra} more line{'s' if extra != 1 else ''})", style="dim"
+                    f"… +{extra} line{'s' if extra != 1 else ''}", style="dim"
                 )
             return Group(
                 header,
@@ -541,7 +541,7 @@ def _truncate_body(
             remaining = len(lines) - i
             if remaining > 0:
                 body.append(
-                    f"… (+{remaining} more line{'s' if remaining != 1 else ''})",
+                    f"… +{remaining} line{'s' if remaining != 1 else ''}",
                     style="dim",
                 )
             return body
@@ -553,7 +553,7 @@ def _truncate_body(
     if extra > 0:
         body.append("\n")
         body.append(
-            f"… (+{extra} more line{'s' if extra != 1 else ''})",
+            f"… +{extra} line{'s' if extra != 1 else ''}",
             style="dim",
         )
     return body
@@ -669,7 +669,7 @@ def _added_removed_summary(added: int, removed: int) -> str:
 def _render_diff_body(diff_lines: list[tuple[str, str]]) -> Text:
     """Render diff hunks with `+`/`-` markers and a dim background, capped at
     `_DIFF_MAX_LINES` (lifted in expanded mode); trailing overflow is
-    summarised as `… (+N more)`."""
+    summarised as `… +N lines`."""
     cap = _HUGE if _expanded() else _DIFF_MAX_LINES
     shown = diff_lines[:cap]
     body = Text()
@@ -688,7 +688,7 @@ def _render_diff_body(diff_lines: list[tuple[str, str]]) -> Text:
     extra = len(diff_lines) - len(shown)
     if extra > 0:
         body.append("\n")
-        body.append(f"… (+{extra} more line{'s' if extra != 1 else ''})", style="dim")
+        body.append(f"… +{extra} line{'s' if extra != 1 else ''}", style="dim")
     return body
 
 
@@ -749,7 +749,7 @@ def _result_write(result: FormattedToolResult, call) -> RenderableType:
     extra = n - len(shown)
     if extra > 0:
         body.append("\n")
-        body.append(f"… (+{extra} more line{'s' if extra != 1 else ''})", style="dim")
+        body.append(f"… +{extra} line{'s' if extra != 1 else ''}", style="dim")
     return _corner_block_with_summary(summary, body)
 
 
@@ -866,7 +866,7 @@ def _result_ls(result: FormattedToolResult, call) -> RenderableType:
         remaining = len(names) - max_entries
         out.append("\n")
         out.append(align)
-        out.append(f"… (+{remaining} more)", style="dim")
+        out.append(f"… +{remaining} lines", style="dim")
     return out
 
 
