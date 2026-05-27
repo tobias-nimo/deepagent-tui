@@ -799,8 +799,8 @@ class SettingsScreen(ModalScreen[None]):
             ("HITL", "default" if self._session.hitl_enabled else "auto-approve"),
             ("Tools", self._session.tool_widget_mode),
             ("Theme", current_theme().name),
-            ("Markdown", "on" if self._session.markdown_enabled else "off"),
-            ("Language", self._session.language),
+            ("Text", "markdown" if self._session.markdown_enabled else "plain"),
+            ("Language", self._session.language.lower()),
         ]
 
     def _render_config(self) -> RenderableType:
@@ -863,7 +863,7 @@ class SettingsScreen(ModalScreen[None]):
         elif idx == 3:
             self._session.markdown_enabled = not self._session.markdown_enabled
         elif idx == 4:
-            # Static placeholder — only "English" is offered today.
+            # Static placeholder — only "english" is offered today.
             pass
 
         save_config(
@@ -898,23 +898,41 @@ class SettingsScreen(ModalScreen[None]):
         if s.context_window:
             rows.append(("Context", _context_meter(s.last_input_tokens, s.context_window)))
         else:
-            rows.append(("Context", Text("unknown (server middleware not attached)", style="dim")))
+            rows.append((
+                "Context",
+                Text(
+                    "unknown (llm_info_middleware not attached — see docs/server-middleware.md)",
+                    style="dim",
+                ),
+            ))
 
         rows.append((
             "Tokens",
             f"{format_tokens(s.input_tokens)} in / {format_tokens(s.output_tokens)} out",
         ))
-        rows.append(("Cost", format_cost(s.total_cost)))
-        if s.subagents:
+        if s.input_price_per_mtok is not None and s.output_price_per_mtok is not None:
+            rows.append(("Cost", format_cost(s.total_cost)))
+        else:
             rows.append((
-                "Note",
+                "Cost",
                 Text(
-                    "Cost covers the main agent only. Subagent LLM calls are not "
-                    "included unless llm_info_middleware is attached to each subagent.",
-                    style="dim italic",
+                    "unknown (llm_info_middleware not attached — see docs/server-middleware.md)",
+                    style="dim",
                 ),
             ))
-        return _renderable_table(rows)
+
+        table = _renderable_table(rows)
+        # The cost-coverage caveat hangs below the table as a paragraph, not
+        # a row, so it reads as a footnote rather than a labelled value.
+        if s.subagents:
+            note = Text(
+                "\n  Note: cost covers the main agent only. Subagent LLM calls "
+                "are not included unless llm_info_middleware is attached to each "
+                "subagent.",
+                style="dim italic",
+            )
+            return Group(table, note)
+        return table
 
     # ── status tab ─────────────────────────────────────────────────────────
 
@@ -927,7 +945,6 @@ class SettingsScreen(ModalScreen[None]):
             ("Graph", s.graph_id or "not connected"),
             ("Assistant", s.assistant_id or "not connected"),
             ("Thread", s.thread_id or "none"),
-            ("Model", s.model or "unknown"),
             ("Status", s.status),
         ]
         return _static_table(rows)
@@ -957,11 +974,11 @@ def _renderable_table(rows: list[tuple[str, RenderableType]]) -> Table:
 
 
 def _format_name_list(names: list[str]) -> str:
-    """`Tools` / `Subagents` rendering: count + comma-separated names. Empty
-    list (middleware not attached) collapses to a muted placeholder."""
+    """`Tools` / `Subagents` rendering: comma-separated names. Empty list
+    (middleware not attached) collapses to a muted placeholder."""
     if not names:
         return "—"
-    return f"({len(names)}) {', '.join(names)}"
+    return ", ".join(names)
 
 
 def _context_meter(used: int, window: int) -> Text:

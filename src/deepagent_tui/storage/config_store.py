@@ -34,7 +34,7 @@ class UserConfig:
     hitl_enabled: bool = True
     tool_widget_mode: WidgetMode = "default"
     markdown_enabled: bool = True
-    language: str = "English"
+    language: str = "english"
 
 
 def load_config() -> UserConfig:

@@ -268,9 +268,9 @@ The TUI looks for three keys on `values`:
 - `input_price_per_mtok: float` — USD per 1M input tokens.
 - `output_price_per_mtok: float` — USD per 1M output tokens.
 
-When both prices are present, the TUI uses them instead of its hardcoded `MODEL_PRICING` table (`src/deepagent_tui/utils/cost.py`). Cost already accrued under the fallback table is not retroactively recomputed when the override arrives.
+When both prices are present, the TUI accrues cost on every turn using them. There is **no hardcoded pricing fallback** — without the middleware, `total_cost` stays at 0 and surfaces that would otherwise show a misleading `$0.0000` (Usage tab Cost row, top status bar, `/status` screen) suppress the cost field instead and point users back to this doc.
 
-When `context_window` is absent, the Usage tab shows `unknown (server middleware not attached)` instead of a meter.
+When `context_window` is absent, the Usage tab shows `unknown (llm_info_middleware not attached — see docs/server-middleware.md)` instead of a meter.
 
 > **Caveat — cost only covers the main agent.**
 > `llm_info_middleware` is set up per agent instance, so token usage and pricing only flow back to thread state for the **main agent's** LLM calls. Subagent LLM calls don't increment the TUI's cost counter unless the same middleware is also attached inside each subagent's middleware list (and that subagent's tokens get streamed back to the parent thread, which is the default for in-process subagents).

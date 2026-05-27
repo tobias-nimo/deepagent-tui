@@ -45,15 +45,15 @@ class Session:
     hitl_enabled: bool = True  # when False, /settings auto-approves HITL interrupts
     tool_widget_mode: str = "default"  # "compacted" | "default" | "expanded"; see ui/tool_widgets.py
     markdown_enabled: bool = True  # when False, assistant chunks render as raw text (debug aid)
-    language: str = "English"  # static for now; placeholder for future i18n
+    language: str = "english"  # static for now; placeholder for future i18n
 
     def add_usage(self, input_tokens: int, output_tokens: int) -> None:
-        """Accumulate token usage and recompute cost.
+        """Accumulate token usage and (when prices are known) cost.
 
-        When `llm_info_middleware` has populated `input_price_per_mtok` /
-        `output_price_per_mtok` on the thread, those win over the hardcoded
-        table in `utils.cost`. Earlier accumulated cost stays as-is (we don't
-        retroactively recompute when the override arrives).
+        Cost only accrues when `llm_info_middleware` has populated
+        `input_price_per_mtok` / `output_price_per_mtok` on thread state.
+        Without those, `total_cost` stays at 0 and surfaces should render
+        a "middleware not attached" hint rather than the false zero.
         """
         self.input_tokens += input_tokens
         self.output_tokens += output_tokens
@@ -65,7 +65,3 @@ class Session:
                 input_tokens * self.input_price_per_mtok
                 + output_tokens * self.output_price_per_mtok
             ) / 1_000_000
-        else:
-            from deepagent_tui.utils.cost import compute_cost
-
-            self.total_cost += compute_cost(input_tokens, output_tokens, self.model)

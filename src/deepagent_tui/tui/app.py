@@ -119,11 +119,14 @@ class StatusBar(Static):
         s = self._session
         model = s.model or "—"
         toks = f"{format_tokens(s.input_tokens)}↑ {format_tokens(s.output_tokens)}↓"
-        cost = format_cost(s.total_cost)
         status_tag = f" [{s.status}]" if s.status != "idle" else ""
-        self.update(
-            f" {model} │ {toks} │ {cost}{status_tag}"
-        )
+        # Without llm_info_middleware we have no prices, so `total_cost` would
+        # be a misleading $0.0000 — drop the cost segment instead.
+        if s.input_price_per_mtok is not None and s.output_price_per_mtok is not None:
+            cost_segment = f" │ {format_cost(s.total_cost)}"
+        else:
+            cost_segment = ""
+        self.update(f" {model} │ {toks}{cost_segment}{status_tag}")
 
 
 class HintBar(Static):
@@ -1575,8 +1578,9 @@ class DeepAgentTUI(App):
         ]
         usage = [
             ("Tokens", f"{format_tokens(s.input_tokens)} in / {format_tokens(s.output_tokens)} out"),
-            ("Cost", format_cost(s.total_cost)),
         ]
+        if s.input_price_per_mtok is not None and s.output_price_per_mtok is not None:
+            usage.append(("Cost", format_cost(s.total_cost)))
         await self.push_screen_wait(StatusScreen(connection, usage))
         render_info("Status dialog dismissed.")
 
