@@ -30,7 +30,7 @@ def render_markdown(text: str) -> _ThemedMarkdown:
     Pre-processes the text to handle edge cases before Rich rendering.
     """
     processed = _preprocess(text)
-    return _ThemedMarkdown(Markdown(processed, code_theme="monokai"))
+    return _ThemedMarkdown(Markdown(processed, code_theme="github-dark"))
 
 
 def _preprocess(text: str) -> str:

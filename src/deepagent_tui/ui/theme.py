@@ -102,18 +102,21 @@ def markdown_theme() -> RichTheme:
     command = t.command
     return RichTheme(
         {
-            "markdown.code": f"bold {accent}",
+            "markdown.code": command,
             "markdown.code_block": accent,
             "markdown.link": f"underline {command}",
             "markdown.link_url": f"underline {command}",
-            "markdown.list": accent,
-            "markdown.item.number": accent,
-            "markdown.block_quote": f"dim {accent}",
-            "markdown.h1": "bold underline",
-            "markdown.h2": f"underline {accent}",
+            "markdown.list": "",
+            "markdown.item.number": "",
+            "markdown.block_quote": "dim",
+            "markdown.h1": f"bold underline {accent}",
+            "markdown.h2": f"bold underline {accent}",
             "markdown.h3": f"bold {accent}",
             "markdown.h4": f"italic {accent}",
+            "markdown.h5": "italic",
+            "markdown.h6": "dim italic",
+            "markdown.strong": f"dim bold {accent}",
             "markdown.table.border": accent,
-            "markdown.table.header": f"not bold {accent}",
+            "markdown.table.header": "not bold",
         }
     )
