@@ -13,7 +13,7 @@ class _Stub(App):
     # SettingsScreen override that the real App CSS adds.
     CSS = """
     Screen { background: $background; }
-    SettingsScreen { background: $background 0%; }
+    SettingsScreen { background: $surface 70%; }
     #chat-top { dock: top; height: 5; background: red; color: white;
                 content-align: center middle; }
     #chat-mid { background: blue; color: white; content-align: center middle; height: 1fr; }

@@ -621,8 +621,8 @@ class SettingsScreen(ModalScreen[None]):
     Status (static).
 
     Rendered as a bottom-anchored modal — the top of the underlying chat
-    stays visible through a transparent screen background, while the panel
-    docks to the lower 70% with a rounded border.
+    stays visible through a hazy ($surface @ 70%) screen background,
+    while the panel docks to the lower 60% with a rounded border.
 
     Tabs are switched with Tab/Shift+Tab. On the Config tab, ↑/↓ move the
     highlighted row and ←/→ cycle its value; every change is persisted to
@@ -631,12 +631,12 @@ class SettingsScreen(ModalScreen[None]):
     """
 
     DEFAULT_CSS = """
-    SettingsScreen { background: $background 0%; }
+    SettingsScreen { background: $surface 70%; }
 
     #settings-root {
         dock: bottom;
         padding: 1 2;
-        height: 70%;
+        height: 60%;
         background: $background;
         border: round #4b5563;
     }
