@@ -353,9 +353,9 @@ def _todos_progress_summary(statuses: list[str]) -> str:
     return summary
 
 
-def _call_write_todos(tc: FormattedToolCall, state: str) -> RenderableType:
-    a = tc.args
-    todos = a.get("todos") or a.get("items") or []
+def render_todos_widget(todos: list, state: str = "pending") -> RenderableType:
+    """Render a Plan widget from a raw todos list. Shared between the inline
+    write_todos tool widget and the sticky PlanCard above the chat bar."""
     if not isinstance(todos, list):
         return _header("Plan", "(invalid)", state=state)
 
@@ -383,6 +383,24 @@ def _call_write_todos(tc: FormattedToolCall, state: str) -> RenderableType:
         body.append(f"{box} ", style=style)
         body.append(content, style=style)
     return Group(header, _indent_block(body))
+
+
+def todos_all_completed(todos: list) -> bool:
+    """True iff `todos` is a non-empty list where every entry's status is
+    completed or skipped/cancelled — the trigger to retire the sticky plan."""
+    if not isinstance(todos, list) or not todos:
+        return False
+    for t in todos:
+        status = _classify_todo(t)[0]
+        if status != "completed" and status not in _SKIPPED_STATUSES:
+            return False
+    return True
+
+
+def _call_write_todos(tc: FormattedToolCall, state: str) -> RenderableType:
+    a = tc.args
+    todos = a.get("todos") or a.get("items") or []
+    return render_todos_widget(todos, state=state)
 
 
 def _progress_summary(tc: FormattedToolCall) -> tuple[str, str]:

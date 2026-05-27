@@ -365,6 +365,42 @@ class ChatTextArea(TextArea):
         await super()._on_paste(event)
 
 
+class PlanCard(Static):
+    """Sticky plan view pinned above the chat bar. Mirrors the inline
+    write_todos widget but persists across turns until every todo is
+    completed (or /clear / /new / /resume clears it). Hidden when empty."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__("", **kwargs)
+        self._todos: list = []
+        self.add_class("-hidden")
+
+    def update_todos(self, todos: list) -> None:
+        from deepagent_tui.ui.tool_widgets import (
+            render_todos_widget,
+            todos_all_completed,
+        )
+
+        if not isinstance(todos, list) or not todos:
+            self.clear_plan()
+            return
+        self._todos = list(todos)
+        if todos_all_completed(todos):
+            self.clear_plan()
+            return
+        self.update(render_todos_widget(todos, state="pending"))
+        self.remove_class("-hidden")
+
+    def clear_plan(self) -> None:
+        self._todos = []
+        self.update("")
+        self.add_class("-hidden")
+
+    @property
+    def has_plan(self) -> bool:
+        return not self.has_class("-hidden")
+
+
 class ChatBar(Container):
     """Multi-line chat input box with a leading ❯ symbol."""
 
@@ -430,6 +466,11 @@ class DeepAgentTUI(App):
         color: $text;
     }
 
+    /* When the sticky PlanCard above the chat bar is showing, the inline
+       write_todos widgets are redundant — collapse them so the log isn't
+       cluttered with duplicate plan snapshots. */
+    #messages .msg.-plan-suppressed { display: none; }
+
     #messages .msg-user {
         height: auto;
         padding: 0 0 0 1;
@@ -466,6 +507,18 @@ class DeepAgentTUI(App):
         color: $text;
     }
     #attachments.-hidden { display: none; }
+
+    #plan-card {
+        height: auto;
+        max-height: 10;
+        padding: 0 2;
+        margin: 1 0 0 0;
+        background: $background;
+        color: $text;
+        overflow-y: auto;
+        scrollbar-size: 0 0;
+    }
+    #plan-card.-hidden { display: none; }
 
     #chat-rule-top {
         height: 1;
@@ -610,6 +663,7 @@ class DeepAgentTUI(App):
         with VerticalScroll(id="main"):
             yield WelcomeBanner(self.session, id="welcome")
             yield Container(id="messages")
+            yield PlanCard(id="plan-card")
             yield Rule(line_style="solid", id="chat-rule-top")
             yield Static("", id="attachments", classes="-hidden")
             yield ChatBar(id="chat-bar")
@@ -1054,6 +1108,7 @@ class DeepAgentTUI(App):
                     child.remove()
                 self._tool_widgets.clear()
                 self._tool_widget_log.clear()
+                self._clear_plan_card()
 
             # Repaint the welcome banner after any command: /theme changes the
             # gradient, and other commands may update session state shown there.
@@ -1571,6 +1626,7 @@ class DeepAgentTUI(App):
             child.remove()
         self._tool_widgets.clear()
         self._tool_widget_log.clear()
+        self._clear_plan_card()
 
     def action_scroll_history_up(self) -> None:
         try:
@@ -1600,6 +1656,7 @@ class DeepAgentTUI(App):
                 child.remove()
             self._tool_widgets.clear()
             self._tool_widget_log.clear()
+            self._clear_plan_card()
             render_info(header)
         else:
             self.action_clear_log()
@@ -1718,7 +1775,7 @@ class DeepAgentTUI(App):
         is waiting. Each widget gets `.-approval-hidden`, which the CSS maps
         to `display: none`."""
         for sel in ("#chat-bar", "#chat-rule-top", "#chat-rule-bottom",
-                    "#autocomplete", "#attachments", "#hint-bar"):
+                    "#autocomplete", "#attachments", "#hint-bar", "#plan-card"):
             try:
                 w = self.query_one(sel)
             except Exception:
@@ -1783,7 +1840,12 @@ class DeepAgentTUI(App):
         self._scroll_to_input()
 
     def _write_tool_call(self, tc: FormattedToolCall) -> None:
-        from deepagent_tui.ui.tool_widgets import render_tool_call_widget
+        from deepagent_tui.ui.tool_widgets import _tool_alias, render_tool_call_widget
+
+        is_plan = _tool_alias(tc.name) == "write_todos"
+        if is_plan:
+            todos = tc.args.get("todos") or tc.args.get("items") or []
+            self._update_plan_card(todos)
 
         # Resume streams (after HITL approval) re-emit the AI message
         # including its tool_calls, so the same tc.id can arrive twice. If we
@@ -1799,7 +1861,10 @@ class DeepAgentTUI(App):
             self._scroll_to_input()
             return
 
-        widget = Static(render_tool_call_widget(tc, state="pending"), classes="msg")
+        # When the sticky PlanCard is showing the same plan, suppress the
+        # inline widget so it doesn't double-render in the scroll log.
+        classes = "msg -plan-suppressed" if is_plan else "msg"
+        widget = Static(render_tool_call_widget(tc, state="pending"), classes=classes)
         self._messages.mount(widget)
         if tc.id:
             self._tool_widgets[tc.id] = (widget, tc)
@@ -1814,6 +1879,20 @@ class DeepAgentTUI(App):
                 self._subagent_progress[tc.id] = []
                 self._pending_subagent_ids.append(tc.id)
         self._scroll_to_input()
+
+    def _update_plan_card(self, todos: list) -> None:
+        try:
+            card = self.query_one("#plan-card", PlanCard)
+        except Exception:
+            return
+        card.update_todos(todos)
+
+    def _clear_plan_card(self) -> None:
+        try:
+            card = self.query_one("#plan-card", PlanCard)
+        except Exception:
+            return
+        card.clear_plan()
 
     def _write_tool_result(self, result: FormattedToolResult) -> None:
         from deepagent_tui.ui.tool_widgets import (
