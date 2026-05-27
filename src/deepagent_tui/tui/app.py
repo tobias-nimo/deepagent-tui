@@ -47,7 +47,6 @@ from deepagent_tui.tui.screens import (
     PickerItem,
     PickerScreen,
     SettingsScreen,
-    StatusScreen,
 )
 from deepagent_tui.ui.markdown import render_markdown
 
@@ -624,7 +623,6 @@ class DeepAgentTUI(App):
         self.session.replay = self._replay_thread
         self.session.show_help = self._tui_show_help
         self.session.show_commands = self._tui_show_commands
-        self.session.show_status = self._tui_show_status
         self.session.show_settings = self._tui_show_settings
         self.session.set_input = self._tui_set_input
         self.session.rerender_tool_widgets = self._rerender_tool_widgets
@@ -1561,28 +1559,6 @@ class DeepAgentTUI(App):
 
         await self.push_screen_wait(CommandsScreen(builtin_commands()))
         render_info("Commands dialog dismissed.")
-
-    async def _tui_show_status(self) -> None:
-        """Push the full-screen status view. Called from the /status command worker."""
-        from deepagent_tui.ui.renderer import render_info
-        from deepagent_tui.utils.cost import format_cost, format_tokens
-
-        s = self.session
-        connection = [
-            ("Server", settings.langgraph_url),
-            ("Graph", s.graph_id or "not connected"),
-            ("Assistant", s.assistant_id or "not connected"),
-            ("Thread", s.thread_id or "none"),
-            ("Model", s.model or "unknown"),
-            ("Status", s.status),
-        ]
-        usage = [
-            ("Tokens", f"{format_tokens(s.input_tokens)} in / {format_tokens(s.output_tokens)} out"),
-        ]
-        if s.input_price_per_mtok is not None and s.output_price_per_mtok is not None:
-            usage.append(("Cost", format_cost(s.total_cost)))
-        await self.push_screen_wait(StatusScreen(connection, usage))
-        render_info("Status dialog dismissed.")
 
     async def _tui_show_settings(self) -> None:
         """Push the full-screen settings view. Called from the /settings command worker."""

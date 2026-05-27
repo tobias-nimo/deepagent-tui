@@ -10,14 +10,6 @@ Opens a full-screen list of built-in commands (`CommandsScreen` in `tui/screens.
 ### `/help`
 Opens a full-screen help view (`HelpScreen` in `tui/screens.py`) with keyboard shortcuts and tips. Esc / Ctrl+C / q closes it; up/down/PageUp/PageDown scroll. Same modal-screen pattern as `/commands`, `/resume`, and `/rewind`.
 
-### `/status`
-Opens a full-screen view (`StatusScreen` in `tui/screens.py`) of the current session, split into two sections:
-
-- **Connection** — server URL, graph id, assistant id, thread id, model name (populated once the first response streams in), current status (`idle` / `streaming` / `interrupted`).
-- **Usage** — cumulative input/output tokens and estimated cost.
-
-Esc / Ctrl+C / q closes it; up/down/PageUp/PageDown scroll. Cost is computed from a built-in pricing table for known models (see `utils/cost.py`); unknown models show `$0.0000`.
-
 ### `/new`
 Clears the previous conversation, asks the server for a fresh thread, and resets the session counters (tokens, cost, local messages). The transcript keeps just the `❯ /new` submission and a `⎿ New thread: <id>` acknowledgment so there's a visible trace of what happened.
 
@@ -113,4 +105,4 @@ async def cmd_ping(client, session, args: str) -> None:
 
 Then add the module to the side-effect import block at the bottom of `commands/__init__.py` so the decorator fires on startup.
 
-Output should go through `render_info` / `render_error` (from `ui/renderer.py`). Each call renders as a single Textual widget under a dim `⎿` corner — `render_info` paints the body dim, `render_error` paints it red. Multi-line strings share one `⎿` with subsequent lines aligned under the first. To inline an arbitrary Rich renderable (e.g. a `Table`), use `render_renderable`. Full-screen modal hooks (`/help`, `/commands`, `/status`) call `render_info("<Name> dialog dismissed.")` after `push_screen_wait` returns. The mount sink is installed by `tui/app.py` on startup; in CLI mode (no sink) the same calls fall through to the shared rich console.
+Output should go through `render_info` / `render_error` (from `ui/renderer.py`). Each call renders as a single Textual widget under a dim `⎿` corner — `render_info` paints the body dim, `render_error` paints it red. Multi-line strings share one `⎿` with subsequent lines aligned under the first. To inline an arbitrary Rich renderable (e.g. a `Table`), use `render_renderable`. Full-screen modal hooks (`/help`, `/commands`, `/settings`) call `render_info("<Name> dialog dismissed.")` after `push_screen_wait` returns. The mount sink is installed by `tui/app.py` on startup; in CLI mode (no sink) the same calls fall through to the shared rich console.

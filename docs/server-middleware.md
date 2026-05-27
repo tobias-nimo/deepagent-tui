@@ -268,7 +268,7 @@ The TUI looks for three keys on `values`:
 - `input_price_per_mtok: float` — USD per 1M input tokens.
 - `output_price_per_mtok: float` — USD per 1M output tokens.
 
-When both prices are present, the TUI accrues cost on every turn using them. There is **no hardcoded pricing fallback** — without the middleware, `total_cost` stays at 0 and surfaces that would otherwise show a misleading `$0.0000` (Usage tab Cost row, top status bar, `/status` screen) suppress the cost field instead and point users back to this doc.
+When both prices are present, the TUI accrues cost on every turn using them. There is **no hardcoded pricing fallback** — without the middleware, `total_cost` stays at 0 and surfaces that would otherwise show a misleading `$0.0000` (Usage tab Cost row, top status bar) suppress the cost field instead and point users back to this doc.
 
 When `context_window` is absent, the Usage tab shows `unknown (llm_info_middleware not attached — see docs/server-middleware.md)` instead of a meter.
 

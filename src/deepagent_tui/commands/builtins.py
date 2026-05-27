@@ -1,4 +1,4 @@
-"""Built-in commands: /commands, /clear, /exit, /status."""
+"""Built-in commands: /commands, /clear, /exit."""
 
 from __future__ import annotations
 
@@ -25,11 +25,3 @@ async def cmd_clear(client, session, args: str) -> None:
 async def cmd_exit(client, session, args: str) -> None:
     render_info("Goodbye!")
     sys.exit(0)
-
-
-@command("status", "Show connection and session info")
-async def cmd_status(client, session, args: str) -> None:
-    if session.show_status is None:
-        render_error("Status screen is not available outside the TUI.")
-        return
-    await session.show_status()
