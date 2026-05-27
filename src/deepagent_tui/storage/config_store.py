@@ -33,6 +33,8 @@ _LEGACY_WIDGET_MODES: dict[str, WidgetMode] = {"condensed": "compacted"}
 class UserConfig:
     hitl_enabled: bool = True
     tool_widget_mode: WidgetMode = "default"
+    markdown_enabled: bool = True
+    language: str = "English"
 
 
 def load_config() -> UserConfig:
@@ -55,6 +57,12 @@ def load_config() -> UserConfig:
             cfg.tool_widget_mode = mode  # type: ignore[assignment]
         elif mode in _LEGACY_WIDGET_MODES:
             cfg.tool_widget_mode = _LEGACY_WIDGET_MODES[mode]
+    md = data.get("markdown_enabled")
+    if isinstance(md, bool):
+        cfg.markdown_enabled = md
+    lang = data.get("language")
+    if isinstance(lang, str) and lang:
+        cfg.language = lang
     return cfg
 
 

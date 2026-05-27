@@ -783,9 +783,9 @@ class SettingsScreen(ModalScreen[None]):
 
     def _refresh_footer(self) -> None:
         if self._active_tab == 0:
-            hint = "↑↓ select  ·  ←→ change  ·  [ ] switch tab  ·  Esc close"
+            hint = "↑↓ select  ·  ←→ change  ·  Shift+Tab to switch tabs  ·  Esc close"
         else:
-            hint = "[ ] switch tab  ·  Esc close"
+            hint = "Shift+Tab to switch tabs  ·  Esc close"
         self.query_one("#settings-footer", Static).update(hint)
 
     # ── config tab ─────────────────────────────────────────────────────────
@@ -794,9 +794,11 @@ class SettingsScreen(ModalScreen[None]):
         from deepagent_tui.ui.theme import current_theme
 
         return [
-            ("HITL", "on" if self._session.hitl_enabled else "off"),
-            ("Tool widgets", self._session.tool_widget_mode),
+            ("HITL", "default" if self._session.hitl_enabled else "auto-approve"),
+            ("Tools", self._session.tool_widget_mode),
             ("Theme", current_theme().name),
+            ("Markdown", "on" if self._session.markdown_enabled else "off"),
+            ("Language", self._session.language),
         ]
 
     def _render_config(self) -> RenderableType:
@@ -830,12 +832,6 @@ class SettingsScreen(ModalScreen[None]):
         idx = self._selected_row
         if idx == 0:
             self._session.hitl_enabled = not self._session.hitl_enabled
-            save_config(
-                UserConfig(
-                    hitl_enabled=self._session.hitl_enabled,
-                    tool_widget_mode=self._session.tool_widget_mode,  # type: ignore[arg-type]
-                )
-            )
         elif idx == 1:
             modes = ("compacted", "default", "expanded")
             current = self._session.tool_widget_mode
@@ -853,12 +849,6 @@ class SettingsScreen(ModalScreen[None]):
             # retroactively to the whole transcript.
             if self._session.rerender_tool_widgets is not None:
                 self._session.rerender_tool_widgets()
-            save_config(
-                UserConfig(
-                    hitl_enabled=self._session.hitl_enabled,
-                    tool_widget_mode=new_mode,  # type: ignore[arg-type]
-                )
-            )
         elif idx == 2:
             names = available_themes()
             try:
@@ -868,7 +858,20 @@ class SettingsScreen(ModalScreen[None]):
             new_name = names[(pos + delta) % len(names)]
             set_theme(new_name)
             persist_theme(new_name)
+        elif idx == 3:
+            self._session.markdown_enabled = not self._session.markdown_enabled
+        elif idx == 4:
+            # Static placeholder — only "English" is offered today.
+            pass
 
+        save_config(
+            UserConfig(
+                hitl_enabled=self._session.hitl_enabled,
+                tool_widget_mode=self._session.tool_widget_mode,  # type: ignore[arg-type]
+                markdown_enabled=self._session.markdown_enabled,
+                language=self._session.language,
+            )
+        )
         self._refresh_tabs()
         self._refresh_body()
 

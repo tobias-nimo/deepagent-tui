@@ -31,6 +31,8 @@ class Session:
     workspace_root: str | None = None  # DEEPAGENT_WORKSPACE env var, else server thread state
     hitl_enabled: bool = True  # when False, /settings auto-approves HITL interrupts
     tool_widget_mode: str = "default"  # "compacted" | "default" | "expanded"; see ui/tool_widgets.py
+    markdown_enabled: bool = True  # when False, assistant chunks render as raw text (debug aid)
+    language: str = "English"  # static for now; placeholder for future i18n
 
     def add_usage(self, input_tokens: int, output_tokens: int) -> None:
         """Accumulate token usage and recompute cost."""

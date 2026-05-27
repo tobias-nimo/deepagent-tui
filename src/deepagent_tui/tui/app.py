@@ -568,6 +568,8 @@ class DeepAgentTUI(App):
         _cfg = load_config()
         self.session.hitl_enabled = _cfg.hitl_enabled
         self.session.tool_widget_mode = _cfg.tool_widget_mode
+        self.session.markdown_enabled = _cfg.markdown_enabled
+        self.session.language = _cfg.language
         _set_widget_mode(_cfg.tool_widget_mode)
         self._stream_buffer: str = ""
         self._active_slot: Static | None = None
@@ -1341,7 +1343,7 @@ class DeepAgentTUI(App):
                     if msg_type == "ai":
                         ai_text = extract_text_content(msg.get("content", ""))
                         if ai_text.strip() and ai_text.strip() != accumulated.strip():
-                            self._write_renderable(render_markdown(ai_text))
+                            self._write_renderable(self._render_assistant_text(ai_text))
                         for tc in msg.get("tool_calls", []):
                             self._write_tool_call(format_tool_call(tc))
                     elif msg_type == "tool":
@@ -1614,7 +1616,7 @@ class DeepAgentTUI(App):
             elif msg_type == "ai":
                 text = extract_text_content(content)
                 if text.strip():
-                    self._write_renderable(render_markdown(text))
+                    self._write_renderable(self._render_assistant_text(text))
                 for tc in msg.get("tool_calls", []) or []:
                     self._write_tool_call(format_tool_call(tc))
             elif msg_type == "tool":
@@ -1757,8 +1759,15 @@ class DeepAgentTUI(App):
         self._stop_thinking_timer()
         if self._active_slot is None:
             return
-        self._active_slot.update(render_markdown(text))
+        self._active_slot.update(self._render_assistant_text(text))
         self._scroll_to_input()
+
+    def _render_assistant_text(self, text: str) -> RenderableType:
+        """Markdown for assistant text, or raw `Text` when /settings has the
+        Markdown toggle off — useful when debugging streamed payloads."""
+        if self.session.markdown_enabled:
+            return render_markdown(text)
+        return Text(text)
 
     def _finalize_slot(self) -> None:
         """Stop the spinner. If the slot only ever showed Thinking… (no text
