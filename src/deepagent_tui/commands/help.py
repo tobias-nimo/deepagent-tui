@@ -6,7 +6,7 @@ from deepagent_tui.commands import command
 from deepagent_tui.ui.renderer import render_error
 
 
-@command("help", "Show tips and keyboard shortcuts")
+@command("help", "Open the help screen (Help, Keyboard, Tips, Commands)")
 async def cmd_help(client, session, args: str) -> None:
     if session.show_help is None:
         render_error("Help screen is not available outside the TUI.")

@@ -6,7 +6,7 @@ from deepagent_tui.commands import command
 from deepagent_tui.ui.renderer import render_error
 
 
-@command("settings", "Open the settings screen")
+@command("settings", "Open the settings screen (Config, Harness, Usage, Status)")
 async def cmd_settings(client, session, args: str) -> None:
     if session.show_settings is None:
         render_error("Settings screen is not available outside the TUI.")
