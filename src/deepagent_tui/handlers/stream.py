@@ -15,6 +15,9 @@ class StreamState:
     current_role: str | None = None
     total_input_tokens: int = 0
     total_output_tokens: int = 0
+    # Input tokens reported on the most recent single AI message in this run.
+    # Drives the /settings Usage context-window meter (see Session.last_input_tokens).
+    last_input_tokens: int = 0
     model: str | None = None
 
     def reset(self) -> None:
@@ -113,6 +116,8 @@ def process_updates_event(data: dict, state: StreamState) -> list[dict]:
                 inp, out = extract_usage(msg)
                 state.total_input_tokens += inp
                 state.total_output_tokens += out
+                if inp:
+                    state.last_input_tokens = inp
 
                 # Extract model name
                 resp_meta = msg.get("response_metadata", {})

@@ -99,7 +99,7 @@ async def test_connect_failure_does_not_crash_app(monkeypatch: pytest.MonkeyPatc
 
 
 async def test_settings_screen_mounts_and_switches_tabs() -> None:
-    """SettingsScreen mounts with three tabs and `_next_tab` cycles through
+    """SettingsScreen mounts with four tabs and `_next_tab` cycles through
     them. We call the screen method directly because Pilot's key dispatch
     doesn't reliably route through Screen.on_key when no widget is focused
     on the screen — the logic we're verifying is the tab-cycling state
@@ -114,15 +114,17 @@ async def test_settings_screen_mounts_and_switches_tabs() -> None:
         await pilot.pause()
 
         assert screen._active_tab == 0
-        assert screen.TABS == ("Config", "Harness", "Status")
+        assert screen.TABS == ("Config", "Harness", "Usage", "Status")
         screen._next_tab()
         assert screen._active_tab == 1
         screen._next_tab()
         assert screen._active_tab == 2
         screen._next_tab()
+        assert screen._active_tab == 3
+        screen._next_tab()
         assert screen._active_tab == 0  # wraps
         screen._prev_tab()
-        assert screen._active_tab == 2  # wraps backwards
+        assert screen._active_tab == 3  # wraps backwards
 
 
 async def test_config_toggle_persists(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:

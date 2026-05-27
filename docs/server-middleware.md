@@ -6,6 +6,8 @@ A few TUI features need the connected Deep Agent server to register specific mid
 |-------------|--------------------|
 | Workspace path in the hint bar / banner (without `DEEPAGENT_WORKSPACE`) | A middleware that writes the path into thread state |
 | `/compact` slash command | `SummarizationToolMiddleware` (exposes the `compact_conversation` tool) |
+| `/settings` → Harness tab: `Tools`, `Subagents` rows | `agent_info_middleware` (writes `tools` / `subagents` into thread state) |
+| `/settings` → Usage tab: context-capacity meter, server-priced cost | `llm_info_middleware` (writes `context_window` / `input_price_per_mtok` / `output_price_per_mtok` into thread state) |
 
 Each section below is a self-contained recipe; pick the ones you need.
 
@@ -165,6 +167,201 @@ curl -s http://localhost:2024/assistants/<id>/schemas \
 ```
 
 Or just run `/compact` in the TUI — a non-error outcome line (either `⎿ Summarised N messages …` or `⎿ Nothing to compact yet …`) means the wiring is correct.
+
+## Agent info (tools & subagents)
+
+The `/settings` Harness tab can show the live list of tools bound to the main agent and the names of any registered subagents. Both come from `agent_info_middleware`.
+
+### What the TUI reads
+
+After the first turn lands, the TUI calls `client.get_thread_state(thread_id)` and looks for two keys on `values`:
+
+- `tools: list[str]` — tool names bound to the main agent (deepagent built-ins plus anything you passed in).
+- `subagents: list[str]` — names of registered subagents. Subagents aren't exposed as model tools (they're routed via the `task` dispatcher), so they have to be supplied to the middleware explicitly.
+
+Both keys are optional. When the middleware isn't attached, the rows render as `—`.
+
+### The middleware
+
+The middleware auto-detects tool names from the first `ModelRequest` and takes subagent names as a constructor argument. It writes back via `aafter_model`, so the values appear after the first model call completes — not on a brand-new thread before any user message.
+
+```python
+# src/middleware/agent_info.py
+from typing import Any, NotRequired
+
+from langchain.agents.middleware import AgentMiddleware
+from langchain.agents.middleware.types import AgentState, ModelRequest
+
+
+class _AgentInfoState(AgentState):
+    tools: NotRequired[list[str]]
+    subagents: NotRequired[list[str]]
+
+
+class _AgentInfoMiddleware(AgentMiddleware[_AgentInfoState, Any, Any]):
+    state_schema = _AgentInfoState
+
+    def __init__(self, subagents: list[dict[str, Any]]) -> None:
+        self._subagent_names = [s["name"] for s in subagents]
+        self._tool_names: list[str] | None = None
+
+    async def awrap_model_call(self, request: ModelRequest, handler):
+        if self._tool_names is None:
+            self._tool_names = sorted(
+                getattr(t, "name", None) or t.get("name", "")
+                for t in (request.tools or [])
+            )
+        return await handler(request)
+
+    async def aafter_model(self, state, runtime):
+        updates: dict[str, Any] = {}
+        if self._tool_names is not None and state.get("tools") != self._tool_names:
+            updates["tools"] = self._tool_names
+        if state.get("subagents") != self._subagent_names:
+            updates["subagents"] = self._subagent_names
+        return updates or None
+
+
+def agent_info_middleware(subagents: list[dict[str, Any]]) -> AgentMiddleware:
+    return _AgentInfoMiddleware(subagents)
+```
+
+### Wiring it in
+
+Pass the same `subagents` list you give to `create_deep_agent`, so the names line up:
+
+```python
+from deepagents import create_deep_agent
+from .middleware import agent_info_middleware
+
+subagents = [
+    {"name": "research", "prompt": "..."},
+    {"name": "code-reviewer", "prompt": "..."},
+]
+
+agent = create_deep_agent(
+    model=...,
+    subagents=subagents,
+    middleware=[agent_info_middleware(subagents), ...],
+)
+```
+
+### Verifying
+
+After one turn:
+
+```python
+state = await client.threads.get_state(thread_id)
+print(state["values"]["tools"])      # e.g. ['edit_file', 'read_file', 'task', ...]
+print(state["values"]["subagents"])  # e.g. ['research', 'code-reviewer']
+```
+
+## LLM info (context window & pricing)
+
+The `/settings` Usage tab can show a context-capacity meter and a server-priced cost figure. Both come from `llm_info_middleware`.
+
+### What the TUI reads
+
+The TUI looks for three keys on `values`:
+
+- `context_window: int` — max input tokens for the agent's LLM. Drives the `current / max` meter on the Usage tab. The "current" number is the input-token count reported on the **most recent single model call** (a closer proxy to "what's actually in the window now" than cumulative tokens, which would keep growing past the window even after compaction).
+- `input_price_per_mtok: float` — USD per 1M input tokens.
+- `output_price_per_mtok: float` — USD per 1M output tokens.
+
+When both prices are present, the TUI uses them instead of its hardcoded `MODEL_PRICING` table (`src/deepagent_tui/utils/cost.py`). Cost already accrued under the fallback table is not retroactively recomputed when the override arrives.
+
+When `context_window` is absent, the Usage tab shows `unknown (server middleware not attached)` instead of a meter.
+
+> **Caveat — cost only covers the main agent.**
+> `llm_info_middleware` is set up per agent instance, so token usage and pricing only flow back to thread state for the **main agent's** LLM calls. Subagent LLM calls don't increment the TUI's cost counter unless the same middleware is also attached inside each subagent's middleware list (and that subagent's tokens get streamed back to the parent thread, which is the default for in-process subagents).
+
+### The middleware
+
+`llm_info_middleware` is a single-shot writer. Its `abefore_agent` hook seeds the three values into thread state on the first invocation and short-circuits on subsequent turns once they're already present.
+
+```python
+# src/middleware/llm_info.py
+from typing import Any, NotRequired
+
+from langchain.agents.middleware import AgentMiddleware
+from langchain.agents.middleware.types import AgentState
+from langgraph.runtime import Runtime
+
+
+class _LLMInfoState(AgentState):
+    context_window: NotRequired[int]
+    input_price_per_mtok: NotRequired[float]
+    output_price_per_mtok: NotRequired[float]
+
+
+class _LLMInfoMiddleware(AgentMiddleware[_LLMInfoState, Any, Any]):
+    state_schema = _LLMInfoState
+
+    def __init__(
+        self,
+        context_window: int,
+        input_price_per_mtok: float,
+        output_price_per_mtok: float,
+    ) -> None:
+        self._context_window = context_window
+        self._input_price = input_price_per_mtok
+        self._output_price = output_price_per_mtok
+
+    async def abefore_agent(self, state, runtime):
+        if (
+            state.get("context_window") == self._context_window
+            and state.get("input_price_per_mtok") == self._input_price
+            and state.get("output_price_per_mtok") == self._output_price
+        ):
+            return None
+        return {
+            "context_window": self._context_window,
+            "input_price_per_mtok": self._input_price,
+            "output_price_per_mtok": self._output_price,
+        }
+
+
+def llm_info_middleware(
+    context_window: int,
+    input_price_per_mtok: float,
+    output_price_per_mtok: float,
+) -> AgentMiddleware:
+    return _LLMInfoMiddleware(context_window, input_price_per_mtok, output_price_per_mtok)
+```
+
+### Wiring it in
+
+Sourcing the numbers from the model is what keeps them honest — hardcoding them is the same maintenance burden the TUI is trying to escape.
+
+```python
+from deepagents import create_deep_agent
+from .middleware import llm_info_middleware
+
+agent = create_deep_agent(
+    model="anthropic:claude-sonnet-4-6",
+    middleware=[
+        llm_info_middleware(
+            context_window=200_000,
+            input_price_per_mtok=3.0,
+            output_price_per_mtok=15.0,
+        ),
+        # ...other middlewares
+    ],
+)
+```
+
+To extend cost tracking to subagents, register the middleware inside each subagent's middleware list as well — the TUI doesn't separate per-agent token usage, so this gives a single cumulative figure across the main agent and its subagents.
+
+### Verifying
+
+```python
+state = await client.threads.get_state(thread_id)
+print(state["values"]["context_window"])         # 200000
+print(state["values"]["input_price_per_mtok"])   # 3.0
+print(state["values"]["output_price_per_mtok"])  # 15.0
+```
+
+In the TUI, open `/settings` and switch to the Usage tab — you should see a filled bar against the configured window, and the Cost row reflects the override prices on the next turn.
 
 ## See also
 

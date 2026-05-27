@@ -15,7 +15,20 @@ class Session:
     status: str = "idle"  # idle | streaming | interrupted
     input_tokens: int = 0
     output_tokens: int = 0
+    # Input tokens reported on the most recent single model call — used as a
+    # proxy for "current context fill" by the /settings Usage meter. Cumulative
+    # `input_tokens` would grow forever and exceed the window even when each
+    # turn is small (e.g. after compaction).
+    last_input_tokens: int = 0
     total_cost: float = 0.0
+    # Optional metadata exposed by server-side middleware (agent_info,
+    # llm_info). Each is None/empty when the middleware isn't attached, and
+    # the /settings panel degrades gracefully.
+    tools: list[str] = field(default_factory=list)
+    subagents: list[str] = field(default_factory=list)
+    context_window: int | None = None
+    input_price_per_mtok: float | None = None
+    output_price_per_mtok: float | None = None
     messages: list[dict] = field(default_factory=list)
     prompt_session: Any = None  # PromptSession instance (set during startup)
     picker: Any = None  # async (options: list[str], title: str | None) -> str | None — set by TUI
@@ -35,9 +48,24 @@ class Session:
     language: str = "English"  # static for now; placeholder for future i18n
 
     def add_usage(self, input_tokens: int, output_tokens: int) -> None:
-        """Accumulate token usage and recompute cost."""
-        from deepagent_tui.utils.cost import compute_cost
+        """Accumulate token usage and recompute cost.
 
+        When `llm_info_middleware` has populated `input_price_per_mtok` /
+        `output_price_per_mtok` on the thread, those win over the hardcoded
+        table in `utils.cost`. Earlier accumulated cost stays as-is (we don't
+        retroactively recompute when the override arrives).
+        """
         self.input_tokens += input_tokens
         self.output_tokens += output_tokens
-        self.total_cost += compute_cost(input_tokens, output_tokens, self.model)
+        if (
+            self.input_price_per_mtok is not None
+            and self.output_price_per_mtok is not None
+        ):
+            self.total_cost += (
+                input_tokens * self.input_price_per_mtok
+                + output_tokens * self.output_price_per_mtok
+            ) / 1_000_000
+        else:
+            from deepagent_tui.utils.cost import compute_cost
+
+            self.total_cost += compute_cost(input_tokens, output_tokens, self.model)

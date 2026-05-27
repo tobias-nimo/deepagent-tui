@@ -1408,18 +1408,31 @@ class DeepAgentTUI(App):
     def _flush_usage(self, state: StreamState) -> None:
         if state.total_input_tokens or state.total_output_tokens:
             self.session.add_usage(state.total_input_tokens, state.total_output_tokens)
+        if state.last_input_tokens:
+            self.session.last_input_tokens = state.last_input_tokens
         if state.model and not self.session.model:
             self.session.model = state.model
+        # `_discover_from_thread_state` also picks up server-side middleware
+        # values (tools/subagents, context_window, prices) — keep polling
+        # until both static pieces (workspace, skills) AND the agent_info
+        # piece are populated.
         if (
             not self.session.workspace_root
             or not self.session.discovered_skills_from_state
+            or not self.session.tools
+            or self.session.context_window is None
         ):
             self.run_worker(self._discover_from_thread_state(), exclusive=False)
 
     async def _discover_from_thread_state(self) -> None:
-        """Fetch skills_metadata from thread state and register each as a dynamic
-        slash command. If workspace_root is unset (no DEEPAGENT_WORKSPACE), also
-        read it from thread state — the server is the authority."""
+        """Pull server-side metadata off thread state onto the session:
+        skills_metadata (registered as dynamic slash commands), workspace
+        root_dir, and the optional `agent_info_middleware` / `llm_info_middleware`
+        outputs (tools, subagents, context window, per-token prices).
+
+        Every field is best-effort — middleware that isn't attached just stays
+        absent from `values`, and the session keeps its default.
+        """
         if not self.session.thread_id:
             return
 
@@ -1441,22 +1454,41 @@ class DeepAgentTUI(App):
                 self.session.discovered_tools[name] = desc
                 register_skill_command(name, desc, path)
 
-        if self.session.workspace_root:
-            return
-
         try:
             state = await self.client.get_thread_state(self.session.thread_id)
         except Exception:
             return
         values = state.get("values", {}) if isinstance(state, dict) else {}
-        for key in (
-            "working_directory", "workspace", "project_root",
-            "root_dir", "cwd", "workspace_dir",
-        ):
-            v = values.get(key) if isinstance(values, dict) else None
-            if isinstance(v, str) and v.startswith("/"):
-                self._apply_workspace_root(v)
-                return
+        if not isinstance(values, dict):
+            return
+
+        if not self.session.workspace_root:
+            for key in (
+                "working_directory", "workspace", "project_root",
+                "root_dir", "cwd", "workspace_dir",
+            ):
+                v = values.get(key)
+                if isinstance(v, str) and v.startswith("/"):
+                    self._apply_workspace_root(v)
+                    break
+
+        tools = values.get("tools")
+        if isinstance(tools, list) and not self.session.tools:
+            self.session.tools = [t for t in tools if isinstance(t, str)]
+
+        subagents = values.get("subagents")
+        if isinstance(subagents, list) and not self.session.subagents:
+            self.session.subagents = [s for s in subagents if isinstance(s, str)]
+
+        cw = values.get("context_window")
+        if isinstance(cw, int) and cw > 0:
+            self.session.context_window = cw
+
+        inp_price = values.get("input_price_per_mtok")
+        out_price = values.get("output_price_per_mtok")
+        if isinstance(inp_price, (int, float)) and isinstance(out_price, (int, float)):
+            self.session.input_price_per_mtok = float(inp_price)
+            self.session.output_price_per_mtok = float(out_price)
 
     def _apply_workspace_root(self, path: str) -> None:
         self.session.workspace_root = path

@@ -617,8 +617,8 @@ class StatusScreen(Screen[None]):
 
 
 class SettingsScreen(ModalScreen[None]):
-    """Three-tab settings view: Config (interactive), Harness (static),
-    Status (static).
+    """Four-tab settings view: Config (interactive), Harness (static),
+    Usage (static meters), Status (static connection info).
 
     Rendered as a bottom-anchored modal — the top of the underlying chat
     stays visible through a hazy ($surface @ 70%) screen background,
@@ -667,7 +667,7 @@ class SettingsScreen(ModalScreen[None]):
     }
     """
 
-    TABS: tuple[str, ...] = ("Config", "Harness", "Status")
+    TABS: tuple[str, ...] = ("Config", "Harness", "Usage", "Status")
 
     def __init__(self, session: Any) -> None:
         super().__init__()
@@ -778,6 +778,8 @@ class SettingsScreen(ModalScreen[None]):
             content.update(self._render_config())
         elif self._active_tab == 1:
             content.update(self._render_harness())
+        elif self._active_tab == 2:
+            content.update(self._render_usage())
         else:
             content.update(self._render_status())
 
@@ -878,17 +880,46 @@ class SettingsScreen(ModalScreen[None]):
     # ── harness tab ────────────────────────────────────────────────────────
 
     def _render_harness(self) -> RenderableType:
-        rows = [
-            ("Model", self._session.model or "unknown"),
-            ("Skills", "Run /skills to see available capabilities"),
-        ]
+        s = self._session
+        rows: list[tuple[str, str]] = [("Model", s.model or "unknown")]
+        rows.append(("Tools", _format_name_list(s.tools)))
+        rows.append(("Subagents", _format_name_list(s.subagents)))
+        rows.append(("Skills", "Run /skills to see available capabilities"))
         return _static_table(rows)
+
+    # ── usage tab ──────────────────────────────────────────────────────────
+
+    def _render_usage(self) -> RenderableType:
+        from deepagent_tui.utils.cost import format_cost, format_tokens
+
+        s = self._session
+        rows: list[tuple[str, RenderableType]] = []
+
+        if s.context_window:
+            rows.append(("Context", _context_meter(s.last_input_tokens, s.context_window)))
+        else:
+            rows.append(("Context", Text("unknown (server middleware not attached)", style="dim")))
+
+        rows.append((
+            "Tokens",
+            f"{format_tokens(s.input_tokens)} in / {format_tokens(s.output_tokens)} out",
+        ))
+        rows.append(("Cost", format_cost(s.total_cost)))
+        if s.subagents:
+            rows.append((
+                "Note",
+                Text(
+                    "Cost covers the main agent only. Subagent LLM calls are not "
+                    "included unless llm_info_middleware is attached to each subagent.",
+                    style="dim italic",
+                ),
+            ))
+        return _renderable_table(rows)
 
     # ── status tab ─────────────────────────────────────────────────────────
 
     def _render_status(self) -> RenderableType:
         from deepagent_tui.config import settings as _settings
-        from deepagent_tui.utils.cost import format_cost, format_tokens
 
         s = self._session
         rows = [
@@ -898,11 +929,6 @@ class SettingsScreen(ModalScreen[None]):
             ("Thread", s.thread_id or "none"),
             ("Model", s.model or "unknown"),
             ("Status", s.status),
-            (
-                "Tokens",
-                f"{format_tokens(s.input_tokens)} in / {format_tokens(s.output_tokens)} out",
-            ),
-            ("Cost", format_cost(s.total_cost)),
         ]
         return _static_table(rows)
 
@@ -916,3 +942,44 @@ def _static_table(rows: list[tuple[str, str]]) -> Table:
     for key, value in rows:
         table.add_row(key, value)
     return table
+
+
+def _renderable_table(rows: list[tuple[str, RenderableType]]) -> Table:
+    """Like `_static_table`, but accepts rich renderables on the right
+    (so the Usage tab can mix a progress-bar meter with plain strings)."""
+    width = max(len(k) for k, _ in rows) + 1
+    table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
+    table.add_column("label", style=f"bold {_theme.ACCENT_COLOR}", min_width=width)
+    table.add_column("value", overflow="fold")
+    for key, value in rows:
+        table.add_row(key, value)
+    return table
+
+
+def _format_name_list(names: list[str]) -> str:
+    """`Tools` / `Subagents` rendering: count + comma-separated names. Empty
+    list (middleware not attached) collapses to a muted placeholder."""
+    if not names:
+        return "—"
+    return f"({len(names)}) {', '.join(names)}"
+
+
+def _context_meter(used: int, window: int) -> Text:
+    """Renders `12.4k / 200k  ████████░░░░░░░░░░░░  6.2%` for the Usage tab.
+
+    `used` is the most recent single-call input token count (closest proxy to
+    current context fill); `window` is the model's max input tokens.
+    """
+    from deepagent_tui.utils.cost import format_tokens
+
+    bar_width = 20
+    ratio = max(0.0, min(1.0, used / window)) if window else 0.0
+    filled = int(round(ratio * bar_width))
+    accent = _theme.current_theme().accent
+
+    line = Text()
+    line.append(f"{format_tokens(used)} / {format_tokens(window)}  ", style="dim")
+    line.append("█" * filled, style=accent)
+    line.append("░" * (bar_width - filled), style="dim")
+    line.append(f"  {ratio * 100:.1f}%", style="dim")
+    return line
