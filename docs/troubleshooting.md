@@ -96,9 +96,9 @@ The approval widget polls thread state and loops until no pending interrupts rem
 
 If the prompt genuinely hangs (no streaming, no new prompt), `Esc` rejects the current one; `Ctrl+C` quits the TUI. Then check the LangGraph server logs — the run may have errored server-side.
 
-## Status bar shows `$0.0000` for cost
+## Cost shows as `unknown` (Usage tab) or is missing from the status bar
 
-The model name isn't in `MODEL_PRICING` (see `src/deepagent_tui/utils/cost.py`). Add an entry for your model, or accept that cost tracking is best-effort for unknown models.
+There is no hardcoded pricing table — cost only accrues when the server's `llm_info_middleware` writes `input_price_per_mtok` and `output_price_per_mtok` into thread state. Without it, the Usage tab's `Cost` row renders `unknown (llm_info_middleware not attached — see docs/server-middleware.md)` and the top status bar suppresses the cost field. Wire the middleware on the server side; the recipe is in [server-middleware.md](server-middleware.md#llm-info-context-window--pricing).
 
 ## Debug mode
 

@@ -74,6 +74,20 @@ While the approval is showing, the chat bar and rules are hidden so the hint lin
 | `PgUp` / `PgDn` | Scroll by a page |
 | `Esc` / `Ctrl+C` / `q` | Close |
 
+## Settings screen
+
+`/settings` opens a four-tab modal (Config / Harness / Usage / Status).
+
+| Key | Action |
+|-----|--------|
+| `Shift+Tab` / `[` | Previous tab |
+| `Tab` / `]` | Next tab |
+| `↑` / `↓` / `k` / `j` | Move highlight (Config tab only) |
+| `←` / `→` / `h` / `l` / `Space` | Cycle the selected row's value (Config tab only) |
+| `Esc` / `Ctrl+C` / `q` | Close |
+
+`Tab` and `Shift+Tab` only reach the settings screen if your terminal forwards them past the app's autocomplete priority binding — `[` and `]` always work as fallbacks.
+
 ## Terminal caveats
 
 `Shift+Enter` requires the terminal to forward the modifier as a distinct keycode. These terminals are known to support it:

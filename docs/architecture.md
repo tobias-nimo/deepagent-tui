@@ -31,16 +31,18 @@ src/deepagent_tui/
 │   ├── copy.py        # /copy + shared transcript/clipboard helpers
 │   ├── export.py      # /export
 │   ├── theme.py       # /theme
+│   ├── settings.py    # /settings (opens SettingsScreen)
 │   └── skills.py      # /skills and /skills refresh
 ├── handlers/
 │   ├── stream.py      # StreamState + process_messages_event / process_updates_event
 │   ├── tools.py       # FormattedToolCall / FormattedToolResult + parsers
 │   └── interrupt.py   # InterruptInfo + extract_interrupts + build_resume_value
 ├── storage/
-│   └── db.py          # SQLite thread index (aiosqlite)
+│   ├── db.py          # SQLite thread index (aiosqlite)
+│   └── config_store.py  # ~/.deepagent-tui/config.toml (HITL, tool-widget mode, markdown, language)
 └── utils/
     ├── tokens.py      # extract_usage(msg) → (input, output)
-    ├── cost.py        # MODEL_PRICING + compute_cost + format_cost/format_tokens
+    ├── cost.py        # format_cost / format_tokens (no hardcoded pricing — see llm_info_middleware)
     └── images.py      # Path detection, base64 encoding, terminal protocols
 ```
 
@@ -74,7 +76,8 @@ A normal user message goes through this path:
 | New theme | `THEMES` dict in `ui/theme.py` |
 | New picker-based command | Build `PickerItem` list, call `session.picker(items, heading)` |
 | New env var | `Settings` class in `config.py` |
-| New model pricing | `MODEL_PRICING` in `utils/cost.py` |
+| New persisted user setting | `UserConfig` in `storage/config_store.py`, row in `SettingsScreen._config_rows` / `_cycle_current` in `tui/screens.py` |
+| Model pricing | Server-side, via `llm_info_middleware` (see [server-middleware.md](server-middleware.md#llm-info-context-window--pricing)) |
 
 ## Streaming layers
 

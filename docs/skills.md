@@ -50,7 +50,7 @@ If nothing has been discovered yet, prints a hint suggesting you send a message 
 
 ## Name collisions
 
-Built-in commands take precedence over dynamic skill commands. If a skill is named `commands`, `help`, `status`, `new`, `clear`, `exit`, `threads`, `resume`, `rewind`, `export`, `copy`, `theme`, or `skills`, the built-in wins and the skill is unreachable as a slash command (but still loaded server-side).
+Built-in commands take precedence over dynamic skill commands. If a skill is named `commands`, `help`, `new`, `clear`, `exit`, `resume`, `rewind`, `compact`, `copy`, `export`, `theme`, `settings`, or `skills`, the built-in wins and the skill is unreachable as a slash command (but still loaded server-side).
 
 ## Implementation pointers
 

@@ -40,6 +40,7 @@ If `THREAD_ID` is set, the TUI attaches to that thread (the server is not asked 
 |------|---------|
 | `~/.deepagent-tui/threads.db` | SQLite thread index (powers `/resume`) |
 | `~/.deepagent-tui/theme` | Persisted theme name written by `/theme` |
+| `~/.deepagent-tui/config.toml` | Persisted `/settings` toggles: HITL mode, tool-widget mode, markdown on/off, language |
 | `.env` | Per-directory configuration overrides |
 
 ## Theme precedence
