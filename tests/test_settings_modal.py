@@ -30,7 +30,7 @@ async def test_chat_visible_above_panel():
     async with app.run_test(size=(40, 30)) as pilot:
         session = Session()
         session.hitl_enabled = True
-        session.tool_widget_mode = "expanded"
+        session.tool_widget_mode = "default"
         await app.push_screen(SettingsScreen(session))
         await pilot.pause()
 

@@ -21,21 +21,35 @@ _ERR_MARKER = "✗"
 _INDENT = "  "
 _SUBAGENT_PROGRESS_MAX = 3
 
-# /settings → "Tool widgets" toggle. When "condensed", verbose renderers
-# (edit/write diffs, bash output, etc.) collapse to header-only or a single
-# `⎿ N lines` summary. Applies to widgets created after the toggle changes;
-# existing widgets in the transcript aren't retroactively re-rendered.
-_WIDGET_MODE: str = "expanded"
+# /settings → "Tool widgets" toggle. Three modes:
+#   compacted — verbose renderers (edit/write diffs, bash output, etc.)
+#               collapse to header-only or a single `⎿ N lines` summary.
+#   default   — capped preview: short diffs, ~8 lines of bash output, 5
+#               directory entries, etc.
+#   expanded  — same renderers as default but with the per-tool caps lifted
+#               so the full diff / output / listing is shown verbatim.
+# The settings screen re-renders existing widgets via
+# `session.rerender_tool_widgets` after toggling, so the change applies
+# retroactively to the whole transcript.
+_WIDGET_MODE: str = "default"
+_VALID_MODES = ("compacted", "default", "expanded")
+# Caps used in "default" mode. `_expanded()` lifts them to effectively no
+# limit; `_compacted()` skips the body altogether.
+_HUGE = 10_000
 
 
 def set_widget_mode(mode: str) -> None:
     global _WIDGET_MODE
-    if mode in ("expanded", "condensed"):
+    if mode in _VALID_MODES:
         _WIDGET_MODE = mode
 
 
-def _condensed() -> bool:
-    return _WIDGET_MODE == "condensed"
+def _compacted() -> bool:
+    return _WIDGET_MODE == "compacted"
+
+
+def _expanded() -> bool:
+    return _WIDGET_MODE == "expanded"
 
 
 def _state_marker(state: str) -> tuple[str, str]:
@@ -168,9 +182,9 @@ def _call_edit(tc: FormattedToolCall, state: str) -> RenderableType:
     # Pending: render the same diff body the result widget would show so the
     # user can review the change before approving. Once the tool returns, the
     # call widget shrinks back to just the header and `_result_edit` takes
-    # over the diff so it doesn't render twice. In condensed mode we skip
+    # over the diff so it doesn't render twice. In compacted mode we skip
     # the diff entirely and let the result widget show just `⎿ N lines`.
-    if state == "pending" and not _condensed():
+    if state == "pending" and not _compacted():
         old_string = str(a.get("old_string", ""))
         new_string = str(a.get("new_string", ""))
         diff_lines = _build_diff_lines(old_string, new_string)
@@ -191,12 +205,12 @@ def _call_write(tc: FormattedToolCall, state: str) -> RenderableType:
     a = tc.args
     file_path = a.get("file_path") or a.get("path") or ""
     header = _header("Write", file_path if file_path else None, state=state)
-    if state == "pending" and not _condensed():
+    if state == "pending" and not _compacted():
         content = str(a.get("content") or a.get("file_text") or "")
         if content:
             lines = content.splitlines() or [""]
             n = len(lines)
-            shown = lines[:_DIFF_MAX_LINES]
+            shown = lines[: _HUGE if _expanded() else _DIFF_MAX_LINES]
             body = Text()
             for i, line in enumerate(shown):
                 if i:
@@ -400,11 +414,21 @@ def _progress_summary(tc: FormattedToolCall) -> tuple[str, str]:
     return (tc.name, _format_args(tc.args, max_total=80))
 
 
+def _subagent_progress_cap() -> int | None:
+    """Per-mode cap on visible subagent progress lines. None means uncapped."""
+    if _compacted():
+        return 1
+    if _expanded():
+        return None
+    return _SUBAGENT_PROGRESS_MAX
+
+
 def _render_progress_body(progress: list[tuple[str, str]]) -> Text:
-    # Rolling window: only the most recent N entries are shown. When a new
-    # inner tool fires the oldest visible line drops off the top so the widget
-    # height stays bounded for long-running subagents.
-    shown = progress[-_SUBAGENT_PROGRESS_MAX:]
+    # Rolling window: only the most recent N entries are shown by default. In
+    # expanded mode the cap is lifted and the full history is rendered; in
+    # compacted mode only the latest line survives.
+    cap = _subagent_progress_cap()
+    shown = progress if cap is None else progress[-cap:]
     body = Text()
     for i, (name, summary) in enumerate(shown):
         if i:
@@ -497,14 +521,20 @@ def _result_with_body(summary: str, body: Text, *, error: bool) -> Group:
     return Group(header, _indent_block(body, indent=_INDENT * 2))
 
 
-def _truncate_body(content: str, max_lines: int = 8, max_chars: int = 600) -> Text:
+def _truncate_body(
+    content: str,
+    max_lines: int | None = 8,
+    max_chars: int | None = 600,
+) -> Text:
+    """Render `content` as dim body text, optionally capped.
+    `None` for either limit means no cap — used in expanded mode."""
     lines = content.splitlines()
-    shown = lines[:max_lines]
+    shown = lines if max_lines is None else lines[:max_lines]
     body = Text()
     used = 0
     last = len(shown) - 1
     for i, ln in enumerate(shown):
-        if used + len(ln) > max_chars:
+        if max_chars is not None and used + len(ln) > max_chars:
             ln = ln[: max(0, max_chars - used - 1)] + "…"
             body.append(ln, style="dim")
             body.append("\n")
@@ -551,7 +581,11 @@ def _result_read(result: FormattedToolResult, call) -> RenderableType:
         return _result_inline(result.summary, error=True)
     content = result.content or ""
     n_lines = content.count("\n") + (1 if content else 0)
-    return _corner_inline(f"{n_lines} line{'s' if n_lines != 1 else ''}")
+    summary = f"{n_lines} line{'s' if n_lines != 1 else ''}"
+    if _expanded() and content:
+        body = _truncate_body(content, max_lines=None, max_chars=None)
+        return _corner_block_with_summary(summary, body)
+    return _corner_inline(summary)
 
 
 def _result_grep(result: FormattedToolResult, call) -> RenderableType:
@@ -569,6 +603,9 @@ def _result_grep(result: FormattedToolResult, call) -> RenderableType:
         n = 0
     else:
         n = sum(1 for ln in content.splitlines() if ln.strip())
+    if _expanded() and n > 0:
+        body = _truncate_body(content, max_lines=None, max_chars=None)
+        return _corner_block_with_summary(_match_count_text(n), body)
     return _corner_inline(_match_count_text(n))
 
 
@@ -577,6 +614,13 @@ def _result_glob(result: FormattedToolResult, call) -> RenderableType:
         return _result_inline(result.summary, error=True)
     # Find returns a Python list literal — parse it instead of counting lines.
     matches = _parse_listing(result.content or "")
+    if _expanded() and matches:
+        body = Text()
+        for i, m in enumerate(matches):
+            if i:
+                body.append("\n")
+            body.append(m, style="dim")
+        return _corner_block_with_summary(_match_count_text(len(matches)), body)
     return _corner_inline(_match_count_text(len(matches)))
 
 
@@ -624,8 +668,10 @@ def _added_removed_summary(added: int, removed: int) -> str:
 
 def _render_diff_body(diff_lines: list[tuple[str, str]]) -> Text:
     """Render diff hunks with `+`/`-` markers and a dim background, capped at
-    `_DIFF_MAX_LINES`; trailing overflow is summarised as `… (+N more)`."""
-    shown = diff_lines[:_DIFF_MAX_LINES]
+    `_DIFF_MAX_LINES` (lifted in expanded mode); trailing overflow is
+    summarised as `… (+N more)`."""
+    cap = _HUGE if _expanded() else _DIFF_MAX_LINES
+    shown = diff_lines[:cap]
     body = Text()
     for i, (kind, text) in enumerate(shown):
         if i:
@@ -675,7 +721,7 @@ def _result_edit(result: FormattedToolResult, call) -> RenderableType:
     added = sum(1 for k, _ in diff_lines if k == "+")
     removed = sum(1 for k, _ in diff_lines if k == "-")
     summary = _added_removed_summary(added, removed)
-    if _condensed():
+    if _compacted():
         return _corner_inline(summary)
     return _corner_block_with_summary(summary, _render_diff_body(diff_lines))
 
@@ -691,9 +737,9 @@ def _result_write(result: FormattedToolResult, call) -> RenderableType:
     lines = content.splitlines() or [""]
     n = len(lines)
     summary = f"Added {n} line{'s' if n != 1 else ''}"
-    if _condensed():
+    if _compacted():
         return _corner_inline(summary)
-    shown = lines[:_DIFF_MAX_LINES]
+    shown = lines[: _HUGE if _expanded() else _DIFF_MAX_LINES]
     body = Text()
     for i, line in enumerate(shown):
         if i:
@@ -750,11 +796,14 @@ def _result_bash(result: FormattedToolResult, call) -> RenderableType:
         header = _result_header(error=error)
         header.append("failed" if error else "done", style="dim")
         return header
-    if _condensed():
+    if _compacted():
         n = sum(1 for ln in content.splitlines() if ln.strip())
         label = "failed" if error else f"{n} line{'s' if n != 1 else ''}"
         return _result_inline(label, error=error)
-    body = _truncate_body(content)
+    if _expanded():
+        body = _truncate_body(content, max_lines=None, max_chars=None)
+    else:
+        body = _truncate_body(content)
     return _corner_block(body)
 
 
@@ -795,7 +844,7 @@ def _result_ls(result: FormattedToolResult, call) -> RenderableType:
     if result.is_error:
         return _result_inline(result.summary, error=True)
     names = [_basename(e) for e in _parse_listing(result.content or "")]
-    if _condensed():
+    if _compacted():
         n = len(names)
         return _corner_inline("(empty)" if n == 0 else f"{n} entr{'ies' if n != 1 else 'y'}")
     out = Text()
@@ -805,7 +854,7 @@ def _result_ls(result: FormattedToolResult, call) -> RenderableType:
         out.append("(empty)", style="dim")
         return out
 
-    max_entries = 5
+    max_entries = _HUGE if _expanded() else 5
     shown = names[:max_entries]
     align = _INDENT + "  "  # align continuation lines with the first entry
     for i, entry in enumerate(shown):
@@ -829,7 +878,10 @@ def _result_generic(result: FormattedToolResult, call) -> RenderableType:
         return _corner_inline("failed" if result.is_error else "done")
     if "\n" not in content and len(content) <= 100:
         return _corner_inline(content)
-    body = _truncate_body(content, max_lines=_DIFF_MAX_LINES)
+    if _expanded():
+        body = _truncate_body(content, max_lines=None, max_chars=None)
+    else:
+        body = _truncate_body(content, max_lines=_DIFF_MAX_LINES)
     return _corner_block(body)
 
 

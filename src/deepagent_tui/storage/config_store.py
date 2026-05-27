@@ -14,18 +14,25 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
-WidgetMode = Literal["expanded", "condensed"]
+WidgetMode = Literal["compacted", "default", "expanded"]
 
 _CONFIG_DIR = Path.home() / ".deepagent-tui"
 _CONFIG_FILE = _CONFIG_DIR / "config.toml"
 
-_VALID_WIDGET_MODES: tuple[WidgetMode, ...] = ("expanded", "condensed")
+_VALID_WIDGET_MODES: tuple[WidgetMode, ...] = ("compacted", "default", "expanded")
+
+# Legacy → modern rename. Pre-v2 the toggle was binary ("condensed"/"expanded"),
+# where "expanded" meant the current "default" (capped) view. We migrate the
+# rename, but intentionally leave legacy "expanded" untouched so the new
+# uncapped mode keeps its natural name — flip back to "default" in /settings
+# if the old capped behaviour is preferred.
+_LEGACY_WIDGET_MODES: dict[str, WidgetMode] = {"condensed": "compacted"}
 
 
 @dataclass
 class UserConfig:
     hitl_enabled: bool = True
-    tool_widget_mode: WidgetMode = "expanded"
+    tool_widget_mode: WidgetMode = "default"
 
 
 def load_config() -> UserConfig:
@@ -43,8 +50,11 @@ def load_config() -> UserConfig:
     if isinstance(hitl, bool):
         cfg.hitl_enabled = hitl
     mode = data.get("tool_widget_mode")
-    if isinstance(mode, str) and mode in _VALID_WIDGET_MODES:
-        cfg.tool_widget_mode = mode  # type: ignore[assignment]
+    if isinstance(mode, str):
+        if mode in _VALID_WIDGET_MODES:
+            cfg.tool_widget_mode = mode  # type: ignore[assignment]
+        elif mode in _LEGACY_WIDGET_MODES:
+            cfg.tool_widget_mode = _LEGACY_WIDGET_MODES[mode]
     return cfg
 
 

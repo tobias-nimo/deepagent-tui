@@ -25,11 +25,12 @@ class Session:
     show_status: Any = None  # async () -> None — set by TUI; pushes the status screen
     show_settings: Any = None  # async () -> None — set by TUI; pushes the settings screen
     set_input: Any = None  # (text: str) -> None — set by TUI; fills the chat input bar and focuses it
+    rerender_tool_widgets: Any = None  # () -> None — set by TUI; re-renders existing tool widgets after /settings flips the widget mode
     discovered_tools: dict[str, str] = field(default_factory=dict)  # name -> description
     discovered_skills_from_state: bool = False  # True once skills_metadata fetched from thread
     workspace_root: str | None = None  # DEEPAGENT_WORKSPACE env var, else server thread state
     hitl_enabled: bool = True  # when False, /settings auto-approves HITL interrupts
-    tool_widget_mode: str = "expanded"  # "expanded" or "condensed"; see ui/tool_widgets.py
+    tool_widget_mode: str = "default"  # "compacted" | "default" | "expanded"; see ui/tool_widgets.py
 
     def add_usage(self, input_tokens: int, output_tokens: int) -> None:
         """Accumulate token usage and recompute cost."""

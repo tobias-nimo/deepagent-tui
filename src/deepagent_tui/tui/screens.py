@@ -837,18 +837,22 @@ class SettingsScreen(ModalScreen[None]):
                 )
             )
         elif idx == 1:
-            modes = ("expanded", "condensed")
+            modes = ("compacted", "default", "expanded")
             current = self._session.tool_widget_mode
             try:
                 pos = modes.index(current)
             except ValueError:
-                pos = 0
+                pos = 1  # unknown → land on "default"
             new_mode = modes[(pos + delta) % len(modes)]
             self._session.tool_widget_mode = new_mode
             # Mirror into the tool_widgets module so future renderers honor it.
             from deepagent_tui.ui.tool_widgets import set_widget_mode
 
             set_widget_mode(new_mode)
+            # Re-render existing tool widgets so the toggle applies
+            # retroactively to the whole transcript.
+            if self._session.rerender_tool_widgets is not None:
+                self._session.rerender_tool_widgets()
             save_config(
                 UserConfig(
                     hitl_enabled=self._session.hitl_enabled,

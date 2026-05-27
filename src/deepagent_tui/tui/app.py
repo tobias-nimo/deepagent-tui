@@ -578,6 +578,12 @@ class DeepAgentTUI(App):
         # marker on the call widget can be flipped from ○ pending → ● green/red
         # once the corresponding tool message arrives.
         self._tool_widgets: dict[str, tuple[Static, FormattedToolCall]] = {}
+        # Persistent log of every tool widget we've mounted (including
+        # completed ones, which `_tool_widgets` no longer tracks). Used to
+        # re-render the entire trace when /settings flips the widget mode so
+        # condensed/default/expanded changes apply to existing widgets too.
+        # Each entry: {widget, tc, result (None until done), state, progress}.
+        self._tool_widget_log: dict[str, dict] = {}
         # Subagent (task) bookkeeping. `_subagent_progress` holds the running
         # list of `⎿ tool` lines per task call_id. `_subagent_ns_to_id` maps a
         # stream-subgraph namespace ("tools:<checkpoint_id>") to the task
@@ -616,6 +622,7 @@ class DeepAgentTUI(App):
         self.session.show_status = self._tui_show_status
         self.session.show_settings = self._tui_show_settings
         self.session.set_input = self._tui_set_input
+        self.session.rerender_tool_widgets = self._rerender_tool_widgets
         # Route render_info / render_error / render_renderable straight into
         # the message log so each call becomes ONE widget — the multi-line
         # `⎿` corner format depends on staying inside a single Static.
@@ -1044,6 +1051,7 @@ class DeepAgentTUI(App):
                 for child in children[:-2]:
                     child.remove()
                 self._tool_widgets.clear()
+                self._tool_widget_log.clear()
 
             # Repaint the welcome banner after any command: /theme changes the
             # gradient, and other commands may update session state shown there.
@@ -1556,6 +1564,7 @@ class DeepAgentTUI(App):
         for child in list(container.children):
             child.remove()
         self._tool_widgets.clear()
+        self._tool_widget_log.clear()
 
     def action_scroll_history_up(self) -> None:
         try:
@@ -1584,6 +1593,7 @@ class DeepAgentTUI(App):
             for child in children[:-1]:
                 child.remove()
             self._tool_widgets.clear()
+            self._tool_widget_log.clear()
             render_info(header)
         else:
             self.action_clear_log()
@@ -1771,6 +1781,8 @@ class DeepAgentTUI(App):
             existing, _ = self._tool_widgets[tc.id]
             existing.update(render_tool_call_widget(tc, state="pending"))
             self._tool_widgets[tc.id] = (existing, tc)
+            if tc.id in self._tool_widget_log:
+                self._tool_widget_log[tc.id]["tc"] = tc
             self._scroll_to_input()
             return
 
@@ -1778,6 +1790,13 @@ class DeepAgentTUI(App):
         self._messages.mount(widget)
         if tc.id:
             self._tool_widgets[tc.id] = (widget, tc)
+            self._tool_widget_log[tc.id] = {
+                "widget": widget,
+                "tc": tc,
+                "result": None,
+                "state": "pending",
+                "progress": None,
+            }
             if tc.is_subagent:
                 self._subagent_progress[tc.id] = []
                 self._pending_subagent_ids.append(tc.id)
@@ -1818,9 +1837,53 @@ class DeepAgentTUI(App):
                 widget.update(call_render)
             else:
                 widget.update(Group(call_render, result_render))
+            log_entry = self._tool_widget_log.get(tc.id)
+            if log_entry is not None:
+                log_entry["tc"] = tc
+                log_entry["result"] = result
+                log_entry["state"] = state
+                log_entry["progress"] = list(progress) if progress else None
             self._scroll_to_input()
         elif result_render is not None:
             self._write_renderable(result_render)
+
+    def _rerender_tool_widgets(self) -> None:
+        """Walk every tool widget mounted this session and re-render it under
+        the current widget mode. Called from /settings when the user flips
+        the tool-widget toggle so existing transcript entries flip too,
+        instead of only widgets created after the change.
+
+        For still-pending widgets we read live subagent progress from
+        `_subagent_progress`; for completed ones we use the snapshot taken at
+        result time. Both paths mirror the call/result render code in
+        `_write_tool_result`."""
+        from deepagent_tui.ui.tool_widgets import (
+            render_tool_call_widget,
+            render_tool_result_widget,
+        )
+
+        for entry in self._tool_widget_log.values():
+            widget: Static = entry["widget"]
+            tc: FormattedToolCall = entry["tc"]
+            result: FormattedToolResult | None = entry["result"]
+            state: str = entry["state"]
+            if tc.is_subagent:
+                progress = (
+                    self._subagent_progress.get(tc.id)
+                    if state == "pending"
+                    else entry.get("progress")
+                )
+            else:
+                progress = None
+            call_render = render_tool_call_widget(tc, state=state, progress=progress)
+            if result is None:
+                widget.update(call_render)
+                continue
+            result_render = render_tool_result_widget(result, call=tc)
+            if result_render is None:
+                widget.update(call_render)
+            else:
+                widget.update(Group(call_render, result_render))
 
     def _handle_subagent_update(self, namespace: str, data: dict) -> None:
         """Stream a single `updates|<ns>` chunk from inside a subagent.
