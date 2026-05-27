@@ -7,8 +7,8 @@ Nine built-in themes, switchable at runtime and persisted across sessions.
 Each theme defines four colors:
 
 - **gradient_start / gradient_end** — RGB endpoints for the ASCII-art banner gradient
-- **accent** — used for highlights, the streaming spinner, picker selections, markdown inline code, etc.
-- **command** — used for the slash-prefix in submitted messages and the autocomplete entries
+- **accent** — used for highlights, the streaming spinner, picker selections, markdown headings, etc.
+- **command** — used for the slash-prefix in submitted messages, autocomplete entries, and markdown inline code / links
 
 | Theme | Accent | Command | Gradient |
 |-------|--------|---------|----------|
@@ -45,7 +45,7 @@ The order of precedence on startup:
 
 ## Markdown coloring
 
-Rich's default markdown styles hard-code cyan/magenta for headings, inline code, links, lists, tables, etc. The TUI overrides them via `markdown_theme()` in `ui/theme.py` so markdown rendering follows the active palette. Without that override, switching to e.g. `vintage` would still show cyan inline code, which clashes with the warm tones.
+Rich's default markdown styles hard-code cyan/magenta for headings, inline code, links, lists, tables, etc. The TUI overrides them via `markdown_theme()` in `ui/theme.py` so markdown rendering follows the active palette — accent drives headings and tables, command drives inline code and links, and elements that would otherwise leak cyan/magenta (list bullets, ordered numbers, block quotes, table headers) are nulled out so they inherit the surrounding text color. Fenced code blocks render through Pygments' `github-dark` theme, picked for its calm palette across all UI themes.
 
 ## Adding a theme
 
