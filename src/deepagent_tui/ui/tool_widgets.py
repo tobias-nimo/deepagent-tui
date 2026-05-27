@@ -373,8 +373,10 @@ def render_todos_widget(todos: list, state: str = "pending") -> RenderableType:
         if i:
             body.append("\n")
         if status == "completed":
-            box, style = "●", "dim strike"
-        elif status in _IN_PROGRESS_STATUSES:
+            body.append("● ", style="dim")
+            body.append(content, style="dim strike")
+            continue
+        if status in _IN_PROGRESS_STATUSES:
             box, style = "◐", "bold"
         elif status in _SKIPPED_STATUSES:
             box, style = "—", "dim strike"
@@ -810,14 +812,17 @@ def _strip_bash_trailer(content: str) -> str:
 def _result_bash(result: FormattedToolResult, call) -> RenderableType:
     error = result.is_error
     content = _strip_bash_trailer(result.content or "")
+    if _compacted():
+        if not content:
+            label = "failed" if error else "done"
+        else:
+            n = sum(1 for ln in content.splitlines() if ln.strip())
+            label = "failed" if error else f"{n} line{'s' if n != 1 else ''}"
+        return _corner_inline(label)
     if not content:
         header = _result_header(error=error)
         header.append("failed" if error else "done", style="dim")
         return header
-    if _compacted():
-        n = sum(1 for ln in content.splitlines() if ln.strip())
-        label = "failed" if error else f"{n} line{'s' if n != 1 else ''}"
-        return _result_inline(label, error=error)
     if _expanded():
         body = _truncate_body(content, max_lines=None, max_chars=None)
     else:
