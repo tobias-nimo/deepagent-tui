@@ -295,6 +295,48 @@ async def test_resolve_file_refs_leaves_unknown(tmp_path) -> None:
         assert agent == "ping @john now"
 
 
+async def test_input_history_recall_and_draft_restore() -> None:
+    """`up` walks older submissions into the chat bar, `down` walks back, and
+    stepping past the newest entry restores the draft stashed on entry. Drive
+    the recall methods directly — the key handler is a thin wrapper over them
+    and pilot key dispatch is flaky for unfocused-edge cases."""
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        prompt = app.query_one("#prompt", ChatTextArea)
+        app._input_history = ["first message", "second message"]
+        prompt.text = "draft in progress"
+
+        # up → newest entry (stashing the draft), then the older one.
+        assert app._history_recall_prev() is True
+        assert prompt.text == "second message"
+        assert app._history_recall_prev() is True
+        assert prompt.text == "first message"
+        # up at the oldest entry is swallowed without moving.
+        assert app._history_recall_prev() is True
+        assert prompt.text == "first message"
+
+        # down steps back toward newer, then restores the draft and exits.
+        assert app._history_recall_next() is True
+        assert prompt.text == "second message"
+        assert app._history_recall_next() is True
+        assert prompt.text == "draft in progress"
+        assert app._history_index is None
+        # down with no active navigation lets the arrow move the cursor.
+        assert app._history_recall_next() is False
+
+
+async def test_input_history_recall_empty_is_noop() -> None:
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        prompt = app.query_one("#prompt", ChatTextArea)
+        prompt.text = "typed"
+        # No history yet → up does nothing and lets the cursor move.
+        assert app._history_recall_prev() is False
+        assert prompt.text == "typed"
+
+
 def _colored_text(t, color: str) -> str:
     """Concatenate the characters of `t` that carry `color` in their span."""
     return "".join(

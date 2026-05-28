@@ -354,31 +354,33 @@ class ChatTextArea(TextArea):
             self.insert("\n", maintain_selection_offset=False)
             return
         if key in ("up", "down"):
-            # While the autocomplete menu is showing, leave arrows alone so the
-            # user can keep editing the slash command without scrolling history.
+            # While the autocomplete menu is showing, leave arrows to the text
+            # area so the user can keep editing the slash command — unless we're
+            # already recalling history, in which case arrows keep stepping
+            # through it (recalled `/commands` re-open the menu otherwise).
             try:
                 ac = self.app.query_one("#autocomplete", OptionList)
                 ac_visible = "-hidden" not in ac.classes
             except Exception:
                 ac_visible = False
-            if not ac_visible:
+            navigating = getattr(self.app, "_history_index", None) is not None
+            if not ac_visible or navigating:
+                # `up` on the first row recalls the previous (older) message;
+                # `down` on the last row recalls the next (newer) one or
+                # restores the stashed draft. Off the edges, fall through so the
+                # arrow moves the cursor within a multi-line buffer.
                 row, _ = self.cursor_location
                 last_row = self.document.line_count - 1
-                at_edge = (key == "up" and row == 0) or (
-                    key == "down" and row == last_row
-                )
-                if at_edge:
-                    event.stop()
-                    event.prevent_default()
-                    try:
-                        scroll = self.app.query_one("#main", VerticalScroll)
-                    except Exception:
+                if key == "up" and row == 0:
+                    if self.app._history_recall_prev():
+                        event.stop()
+                        event.prevent_default()
                         return
-                    if key == "up":
-                        scroll.scroll_up(animate=False)
-                    else:
-                        scroll.scroll_down(animate=False)
-                    return
+                elif key == "down" and row == last_row:
+                    if self.app._history_recall_next():
+                        event.stop()
+                        event.prevent_default()
+                        return
         await super()._on_key(event)
 
     async def _on_paste(self, event: events.Paste) -> None:
@@ -666,6 +668,14 @@ class DeepAgentTUI(App):
         self._thinking_timer = None
         self._thinking_frame: int = 0
         self._pending_attachments: list[str] = []
+        # Shell-style input history: every non-empty submission (raw text) is
+        # appended here. `_history_index` is None while editing the live draft
+        # and an index into `_input_history` while recalling; `_history_draft`
+        # stashes the in-progress text so `down` past the newest entry can
+        # restore it. See `_history_recall_prev` / `_history_recall_next`.
+        self._input_history: list[str] = []
+        self._history_index: int | None = None
+        self._history_draft: str = ""
         # Pending tool calls awaiting their result. Keyed by tool_call_id so the
         # marker on the call widget can be flipped from ○ pending → ● green/red
         # once the corresponding tool message arrives.
@@ -1128,6 +1138,41 @@ class DeepAgentTUI(App):
         prompt.move_cursor(prompt.document.end)
         return prompt
 
+    # ── Input history (arrow-key recall) ─────────────────────────────────────
+
+    def _history_recall_prev(self) -> bool:
+        """Load the previous (older) submitted message into the chat bar.
+        Stashes the live draft on first entry. Returns True if the key was
+        consumed (history exists), False to let the arrow move the cursor."""
+        if not self._input_history:
+            return False
+        if self._history_index is None:
+            prompt = self.query_one("#prompt", ChatTextArea)
+            self._history_draft = prompt.text
+            self._history_index = len(self._input_history) - 1
+        elif self._history_index > 0:
+            self._history_index -= 1
+        else:
+            return True  # already at the oldest entry — swallow without moving
+        self._set_prompt_text(self._input_history[self._history_index])
+        return True
+
+    def _history_recall_next(self) -> bool:
+        """Load the next (newer) submitted message, or restore the stashed
+        draft once stepping past the newest entry. Returns True if the key was
+        consumed, False when not currently navigating history."""
+        if self._history_index is None:
+            return False
+        if self._history_index < len(self._input_history) - 1:
+            self._history_index += 1
+            self._set_prompt_text(self._input_history[self._history_index])
+        else:
+            self._history_index = None
+            draft = self._history_draft
+            self._history_draft = ""
+            self._set_prompt_text(draft)
+        return True
+
     # ── Submit / commands ───────────────────────────────────────────────────
 
     async def on_chat_text_area_submitted(
@@ -1138,6 +1183,12 @@ class DeepAgentTUI(App):
         pending = list(self._pending_attachments)
         if not text and not pending:
             return
+        # Record the raw submission for arrow-key recall (skipping consecutive
+        # duplicates) and exit any in-progress history navigation.
+        if text and (not self._input_history or self._input_history[-1] != raw_value):
+            self._input_history.append(raw_value)
+        self._history_index = None
+        self._history_draft = ""
         message.text_area.text = ""
         if self._pending_attachments:
             self._pending_attachments.clear()
