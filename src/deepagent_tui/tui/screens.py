@@ -722,15 +722,15 @@ class SettingsScreen(ModalScreen[None]):
         out = Text()
         for i, (label, value) in enumerate(rows):
             if i:
-                out.append("\n\n")
+                out.append("\n")
             selected = i == self._selected_row
             if selected:
-                out.append("❯ ", style=f"bold {accent}")
-                out.append(label.ljust(label_width), style=f"bold {accent}")
-                out.append(value, style=f"bold {accent}")
+                out.append("❯ ", style=accent)
+                out.append(label.ljust(label_width), style=accent)
+                out.append(value, style=accent)
             else:
                 out.append("  ")
-                out.append(label.ljust(label_width), style="bold")
+                out.append(label.ljust(label_width))
                 out.append(value, style="dim")
         return out
 
