@@ -128,9 +128,9 @@ async def test_settings_screen_mounts_and_switches_tabs() -> None:
 
 
 async def test_config_toggle_persists(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    """`_cycle_current` on the HITL row flips session state and round-trips
-    through the on-disk config file. Uses a tmp config dir so the user's
-    real config is never touched."""
+    """`_cycle_current` on the Auto-approve tools row flips session state and
+    round-trips through the on-disk config file. Uses a tmp config dir so the
+    user's real config is never touched."""
     from deepagent_tui.storage import config_store
     from deepagent_tui.tui.screens import SettingsScreen
 
@@ -146,19 +146,22 @@ async def test_config_toggle_persists(monkeypatch: pytest.MonkeyPatch, tmp_path)
         await app.push_screen(screen)
         await pilot.pause()
 
-        # Highlight defaults to row 0 (HITL).
+        # Highlight defaults to row 0 (Tool widgets).
         assert screen._selected_row == 0
+
+        # Auto-approve tools lives on row 1 — toggling flips hitl_enabled.
+        screen._selected_row = 1
         screen._cycle_current(+1)
         assert app.session.hitl_enabled != initial_hitl
 
         loaded = config_store.load_config()
         assert loaded.hitl_enabled == app.session.hitl_enabled
 
-        # Cycling the Tool widgets row writes the new mode and propagates
-        # to the module-level flag used by renderers.
+        # Cycling the Tool widgets row (row 0) writes the new mode and
+        # propagates to the module-level flag used by renderers.
         from deepagent_tui.ui import tool_widgets as tw
 
-        screen._selected_row = 1
+        screen._selected_row = 0
         before_mode = app.session.tool_widget_mode
         screen._cycle_current(+1)
         assert app.session.tool_widget_mode != before_mode

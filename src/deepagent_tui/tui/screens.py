@@ -494,10 +494,12 @@ class HelpScreen(ModalScreen[None]):
         return Group(welcome, Text(""), getting_started)
 
     @staticmethod
-    def _render_table(rows: list[tuple[str, str]]) -> Table:
+    def _render_table(rows: list[tuple[str, str]], key_style: str | None = None) -> Table:
+        if key_style is None:
+            key_style = _theme.current_theme().accent
         width = max(len(k) for k, _ in rows) + 1
         table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
-        table.add_column("key", style=f"bold {_theme.ACCENT_COLOR}", min_width=width)
+        table.add_column("key", style=key_style, min_width=width)
         table.add_column("desc", style="dim", overflow="fold")
         for key, desc in rows:
             table.add_row(key, desc)
@@ -506,10 +508,12 @@ class HelpScreen(ModalScreen[None]):
     def _render_commands(self) -> RenderableType:
         if not self._builtins:
             return Text("No commands registered.", style="dim")
-        rows = [(f"/{name}", desc or "—") for name, desc in sorted(self._builtins.items())]
-        table = self._render_table(rows)
-
         accent = _theme.current_theme().accent
+        command = _theme.current_theme().command
+        rows = [(f"/{name}", desc or "—") for name, desc in sorted(self._builtins.items())]
+        table = self._render_table(rows, key_style=command)
+
+        builtin_heading = Text("Built-in", style=f"bold {accent}")
         skills_heading = Text("\nSkills", style=f"bold {accent}")
         skills_note = Text(style="dim")
         skills_note.append(
@@ -520,7 +524,7 @@ class HelpScreen(ModalScreen[None]):
         skills_note.append(" (with optional arguments). Run ")
         skills_note.append("/skills", style=f"bold {accent}")
         skills_note.append(" to see what the current agent can do.")
-        return Group(table, skills_heading, skills_note)
+        return Group(builtin_heading, table, skills_heading, skills_note)
 
 
 class SettingsScreen(ModalScreen[None]):
@@ -703,12 +707,12 @@ class SettingsScreen(ModalScreen[None]):
         from deepagent_tui.ui.theme import current_theme
 
         return [
-            ("HITL", "default" if self._session.hitl_enabled else "auto-approve"),
-            ("Tools", self._session.tool_widget_mode),
-            ("Theme", current_theme().name),
-            ("Text", "markdown" if self._session.markdown_enabled else "plain"),
-            ("Thinking", self._session.thinking_animation),
+            ("Tool widgets output", self._session.tool_widget_mode),
+            ("Auto-approve tools", "off" if self._session.hitl_enabled else "on"),
+            ("Markdown rendering", "on" if self._session.markdown_enabled else "off"),
+            ("Thinking animation", self._session.thinking_animation),
             ("Language", self._session.language.lower()),
+            ("Theme", current_theme().name),
         ]
 
     def _render_config(self) -> RenderableType:
@@ -741,8 +745,6 @@ class SettingsScreen(ModalScreen[None]):
 
         idx = self._selected_row
         if idx == 0:
-            self._session.hitl_enabled = not self._session.hitl_enabled
-        elif idx == 1:
             modes = ("compacted", "default", "expanded")
             current = self._session.tool_widget_mode
             try:
@@ -759,18 +761,11 @@ class SettingsScreen(ModalScreen[None]):
             # retroactively to the whole transcript.
             if self._session.rerender_tool_widgets is not None:
                 self._session.rerender_tool_widgets()
+        elif idx == 1:
+            self._session.hitl_enabled = not self._session.hitl_enabled
         elif idx == 2:
-            names = available_themes()
-            try:
-                pos = names.index(current_theme().name)
-            except ValueError:
-                pos = 0
-            new_name = names[(pos + delta) % len(names)]
-            set_theme(new_name)
-            persist_theme(new_name)
-        elif idx == 3:
             self._session.markdown_enabled = not self._session.markdown_enabled
-        elif idx == 4:
+        elif idx == 3:
             from deepagent_tui.ui import thinking as thinking_anim
 
             keys = thinking_anim.ANIMATION_KEYS
@@ -781,9 +776,18 @@ class SettingsScreen(ModalScreen[None]):
             new_key = keys[(pos + delta) % len(keys)]
             self._session.thinking_animation = new_key
             thinking_anim.set_animation(new_key)
-        elif idx == 5:
+        elif idx == 4:
             # Static placeholder — only "english" is offered today.
             pass
+        elif idx == 5:
+            names = available_themes()
+            try:
+                pos = names.index(current_theme().name)
+            except ValueError:
+                pos = 0
+            new_name = names[(pos + delta) % len(names)]
+            set_theme(new_name)
+            persist_theme(new_name)
 
         save_config(
             UserConfig(
