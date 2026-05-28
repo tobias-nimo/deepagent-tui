@@ -8,8 +8,8 @@ All commands start with `/` and have tab-completion. While typing a slash comman
 Opens a four-tab modal docked to the bottom 60% of the screen (`HelpScreen` in `tui/screens.py`). `Shift+Tab` / `Tab` (also `[` / `]`) cycles tabs; `Esc` / `Ctrl+C` / `q` closes.
 
 - **Help** — friendly welcome plus a short overview of the TUI and deep agents, followed by getting-started instructions.
-- **Keyboard** — keyboard shortcuts (Enter / Shift+Enter / Tab / Esc / Ctrl+L / Ctrl+C / PageUp / PageDown / arrow scrolling).
-- **Tips** — quick workflow hints (slash commands, skills, image paste, /resume, /rewind, /theme).
+- **Keyboard** — keyboard shortcuts (Enter / Shift+Enter / Tab / Esc / ↑↓ message recall / Shift+arrows selection / Shift+Tab focus toggle / Fn+↑↓ paging).
+- **Tips** — quick workflow hints (slash commands, @ file references, ! shell commands, passing images, skills, /resume, /rewind, /theme).
 - **Commands** — the full list of built-in slash commands (name + description), followed by a short note explaining that skills are invoked as `/<skill-name>` and pointing to `/skills` to see what the current agent exposes.
 
 ### `/new`

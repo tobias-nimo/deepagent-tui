@@ -338,21 +338,22 @@ class HelpScreen(ModalScreen[None]):
     TABS: tuple[str, ...] = ("Help", "Keyboard", "Tips", "Commands")
 
     SHORTCUTS: list[tuple[str, str]] = [
-        ("Enter", "Send the current message"),
-        ("Shift+Enter", "Insert a newline (multi-line input)"),
-        ("Tab", "Accept the highlighted slash-command autocomplete"),
-        ("Esc", "Cancel a streaming run and restore the typed message"),
-        ("Esc Esc", "Drop pending image attachments"),
-        ("Ctrl+L", "Clear the message log (same as /clear)"),
-        ("Ctrl+C", "Quit the TUI (same as /exit)"),
-        ("PageUp / PageDown", "Scroll the transcript"),
-        ("↑ / ↓ at edge", "Scroll up/down when the cursor is at the input edge"),
+        ("Enter", "Send the current message."),
+        ("Shift+Enter", "Insert a newline (multi-line input)."),
+        ("Tab", "Accept the highlighted slash-command autocomplete."),
+        ("Esc", "Cancel a streaming run and restore the typed message."),
+        ("↑ / ↓", "Recall earlier sent messages; ↓ past the newest restores your draft."),
+        ("Shift + arrows", "Select text in the chat bar."),
+        ("Shift+Tab", "Move focus in/out of the chat bar — when out, ↑/↓ scroll the transcript line by line."),
+        ("Fn+↑ / Fn+↓", "Page up / page down through the transcript."),
     ]
 
     TIPS: list[tuple[str, str]] = [
         ("Slash commands", "Type / to browse commands with autocomplete."),
+        ("File references", "Type @ to search workspace files; the chosen file is sent to the agent as a link."),
+        ("Shell commands", "Start a line with ! to run a shell command locally — its output appears inline and isn't sent to the agent."),
+        ("Pass images", "Copy an image and paste with ⌘V, or paste/drag a local image path; it attaches to your next message."),
         ("Skills", "Run /skills to see what the connected agent can do."),
-        ("Paste images", "Paste a local image path; it attaches to your next message."),
         ("Resume a thread", "/resume opens a picker of recent threads."),
         ("Rewind to earlier", "/rewind branches a new thread from any past user turn."),
         ("Switch theme", "/theme lists themes; /theme <name> applies one."),
