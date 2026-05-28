@@ -74,7 +74,7 @@ Opens a four-tab modal docked to the bottom 60% of the screen (the chat behind s
 - **Config** — six interactive rows; ↑↓ moves the highlight, ←→ (or `Space`) cycles the value. Changes apply live and are persisted to `~/.deepagent-tui/config.toml`.
   - `Tool widgets output` — tool-widget verbosity: `compacted` (header only), `default` (capped preview), `expanded` (no per-tool cap; full diffs, full bash output, full Ls listings, full subagent progress). Changing this re-renders existing tool widgets in the transcript, not just future ones.
   - `Auto-approve tools` — `off` shows the inline approval widget on interrupts; `on` auto-accepts them.
-  - `Markdown rendering` — `on` renders assistant text through Rich Markdown; `off` falls back to raw `Text` (useful for debugging streamed payloads).
+  - `Markdown rendering` — `on` renders assistant text through Rich Markdown; `off` falls back to raw `Text` (useful for debugging streamed payloads). Changing this re-renders existing assistant messages in the transcript, not just future ones.
   - `Thinking animation` — cycles the streaming "Thinking…" animation: `braille`, `pulse`, `shimmer`, `gradient`, `typewriter`, `sparkle` (`shimmer`/`gradient` follow the active theme).
   - `Language` — placeholder locked to `english` today.
   - `Theme` — cycles through the same themes available to `/theme`. Also writes to `~/.deepagent-tui/theme`.
