@@ -22,6 +22,7 @@ dev = [
 
 [project.scripts]
 deepagent-tui = "deepagent_tui.tui:run_tui"
+deepagent = "deepagent_tui.cli:main"
 
 [build-system]
 requires = ["hatchling"]
