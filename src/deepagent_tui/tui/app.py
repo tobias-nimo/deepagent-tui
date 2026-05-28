@@ -1111,7 +1111,7 @@ class DeepAgentTUI(App):
             if first.id is None:
                 return
             self._set_prompt_text(f"/{first.id} ")
-            self.action_hide_autocomplete()
+            self._hide_autocomplete_list(ac)
             return
         # "none": nothing to complete.
 
@@ -1129,7 +1129,7 @@ class DeepAgentTUI(App):
             return
         if self._ac_mode == "command":
             prompt = self._set_prompt_text(f"/{event.option_id} ")
-            self.action_hide_autocomplete()
+            self._hide_autocomplete_list(event.option_list)
             prompt.focus()
 
     def _set_prompt_text(self, text: str) -> "ChatTextArea":
