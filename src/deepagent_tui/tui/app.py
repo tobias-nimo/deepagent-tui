@@ -159,11 +159,13 @@ class StatusBar(Static):
 class HintBar(Static):
     """Single-row bar below the chat input. Renders the per-turn wall
     clock (⏱  Ns / Nm Ns / Nh Nm Ns) followed by a context-aware hint: actionable cues
-    while streaming or composing, otherwise rotating between the
-    workspace path and tips."""
+    while streaming or composing, otherwise the workspace path (static, when
+    available) followed by a rotating tip."""
 
     _TIPS = (
-        "Pass images with ⌘C / ⌘V.",
+        "Pass images with ⌘C + ⌘V.",
+        "/settings to open config menu.",
+        "/help to open help screen.",
     )
     _TICK = 0.1
     _ROTATE_EVERY = 100  # 0.1s * 100 = 10s between idle rotations
@@ -251,13 +253,11 @@ class HintBar(Static):
         if value.strip():
             return "Enter to send · Shift+Enter for newline"
 
-        options: list[str] = []
+        tip = self._TIPS[(self._tick // self._ROTATE_EVERY) % len(self._TIPS)]
         ws = _workspace_label(s)
         if ws:
-            options.append(ws)
-        options.extend(self._TIPS)
-        idx = (self._tick // self._ROTATE_EVERY) % len(options)
-        return options[idx]
+            return f"{ws}   ·  {tip}"
+        return tip
 
 
 class WelcomeBanner(Static):
