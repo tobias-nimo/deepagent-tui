@@ -717,7 +717,7 @@ class SettingsScreen(ModalScreen[None]):
         out = Text()
         for i, (label, value) in enumerate(rows):
             if i:
-                out.append("\n")
+                out.append("\n\n")
             selected = i == self._selected_row
             if selected:
                 out.append("❯ ", style=f"bold {accent}")
@@ -793,13 +793,24 @@ class SettingsScreen(ModalScreen[None]):
         rows.append(("Subagents", _format_name_list(s.subagents)))
         rows.append(("Skills", "Run /skills to see available capabilities"))
         table = _static_table(rows)
-        if not s.tools and not s.subagents:
-            note = Text(
-                "\n  Tools and subagents aren't available. "
-                "See docs/server-middleware.md to enable them.",
-                style="dim italic",
+        notes: list[Text] = []
+        if not s.model:
+            notes.append(
+                Text(
+                    "  No model discovered yet. Send a message first to load agent state.",
+                    style="dim italic",
+                )
             )
-            return Group(table, note)
+        if not s.tools and not s.subagents:
+            notes.append(
+                Text(
+                    "  Tools and subagents aren't available. "
+                    "See docs/server-middleware.md to enable them.",
+                    style="dim italic",
+                )
+            )
+        if notes:
+            return Group(table, *notes)
         return table
 
     # ── usage tab ──────────────────────────────────────────────────────────
@@ -837,7 +848,7 @@ class SettingsScreen(ModalScreen[None]):
         if not middleware_attached:
             notes.append(
                 Text(
-                    "\n  Cost and context usage aren't available. "
+                    "  Cost and context usage aren't available. "
                     "See docs/server-middleware.md to enable them.",
                     style="dim italic",
                 )
@@ -845,7 +856,7 @@ class SettingsScreen(ModalScreen[None]):
         elif s.subagents:
             notes.append(
                 Text(
-                    "\n  Cost covers the main agent only — subagent calls aren't counted. "
+                    "  Cost covers the main agent only — subagent calls aren't counted. "
                     "See docs/server-middleware.md to include them.",
                     style="dim italic",
                 )
@@ -873,7 +884,7 @@ class SettingsScreen(ModalScreen[None]):
 def _static_table(rows: list[tuple[str, str]]) -> Table:
     """Two-column key/value table shared by the static settings tabs."""
     width = max(len(k) for k, _ in rows) + 1
-    table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
+    table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 1, 0))
     table.add_column("label", style=f"bold {_theme.ACCENT_COLOR}", min_width=width)
     table.add_column("value", style="dim", overflow="fold")
     for key, value in rows:
@@ -885,7 +896,7 @@ def _renderable_table(rows: list[tuple[str, RenderableType]]) -> Table:
     """Like `_static_table`, but accepts rich renderables on the right
     (so the Usage tab can mix a progress-bar meter with plain strings)."""
     width = max(len(k) for k, _ in rows) + 1
-    table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 0, 0))
+    table = Table(show_header=False, box=None, expand=False, padding=(0, 2, 1, 0))
     table.add_column("label", style=f"bold {_theme.ACCENT_COLOR}", min_width=width)
     table.add_column("value", overflow="fold")
     for key, value in rows:
