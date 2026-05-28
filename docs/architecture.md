@@ -39,7 +39,7 @@ src/deepagent_tui/
 │   └── interrupt.py   # InterruptInfo + extract_interrupts + build_resume_value
 ├── storage/
 │   ├── db.py          # SQLite thread index (aiosqlite)
-│   └── config_store.py  # ~/.deepagent-tui/config.toml (HITL, tool-widget mode, markdown, language)
+│   └── config_store.py  # ~/.deepagent-tui/config.toml (HITL, tool-widget mode, markdown, thinking animation, language)
 └── utils/
     ├── tokens.py      # extract_usage(msg) → (input, output)
     ├── cost.py        # format_cost / format_tokens (no hardcoded pricing — see llm_info_middleware)

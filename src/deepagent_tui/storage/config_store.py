@@ -1,10 +1,10 @@
 """User-tunable config persisted to ~/.deepagent-tui/config.toml.
 
-Mirrors the single-file pattern used by `ui/theme.py` for the theme name. Two
-scalars today (HITL toggle, tool-widget verbosity); a hand-rolled TOML writer
-keeps us off `tomli_w` since the file is trivial. Unknown keys and parse
-errors fall back to defaults so a stale file from a future version is never
-fatal.
+Mirrors the single-file pattern used by `ui/theme.py` for the theme name. Five
+scalars today (HITL toggle, tool-widget verbosity, markdown toggle, language,
+thinking animation); a hand-rolled TOML writer keeps us off `tomli_w` since the
+file is trivial. Unknown keys and parse errors fall back to defaults so a stale
+file from a future version is never fatal.
 """
 
 from __future__ import annotations

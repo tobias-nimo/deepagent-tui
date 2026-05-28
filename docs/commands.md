@@ -71,12 +71,13 @@ The welcome banner repaints after any command, so theme changes take effect imme
 ### `/settings`
 Opens a four-tab modal docked to the bottom 60% of the screen (the chat behind stays visible through a hazy backdrop). `Shift+Tab` / `Tab` (also `[` / `]`) cycles tabs; `Esc` / `Ctrl+C` / `q` closes.
 
-- **Config** — five interactive rows; ↑↓ moves the highlight, ←→ (or `Space`) cycles the value. Changes apply live and are persisted to `~/.deepagent-tui/config.toml`.
-  - `HITL` — `default` shows the inline approval widget on interrupts; `auto-approve` auto-accepts them.
-  - `Tools` — tool-widget verbosity: `compacted` (header only), `default` (capped preview), `expanded` (no per-tool cap; full diffs, full bash output, full Ls listings, full subagent progress). Changing this re-renders existing tool widgets in the transcript, not just future ones.
-  - `Theme` — cycles through the same themes available to `/theme`. Also writes to `~/.deepagent-tui/theme`.
-  - `Text` — `markdown` renders assistant text through Rich Markdown; `plain` falls back to raw `Text` (useful for debugging streamed payloads).
+- **Config** — six interactive rows; ↑↓ moves the highlight, ←→ (or `Space`) cycles the value. Changes apply live and are persisted to `~/.deepagent-tui/config.toml`.
+  - `Tool widgets output` — tool-widget verbosity: `compacted` (header only), `default` (capped preview), `expanded` (no per-tool cap; full diffs, full bash output, full Ls listings, full subagent progress). Changing this re-renders existing tool widgets in the transcript, not just future ones.
+  - `Auto-approve tools` — `off` shows the inline approval widget on interrupts; `on` auto-accepts them.
+  - `Markdown rendering` — `on` renders assistant text through Rich Markdown; `off` falls back to raw `Text` (useful for debugging streamed payloads).
+  - `Thinking animation` — cycles the streaming "Thinking…" animation: `braille`, `pulse`, `shimmer`, `gradient`, `typewriter`, `sparkle` (`shimmer`/`gradient` follow the active theme).
   - `Language` — placeholder locked to `english` today.
+  - `Theme` — cycles through the same themes available to `/theme`. Also writes to `~/.deepagent-tui/theme`.
 - **Harness** — static: `Model`, `Tools`, `Subagents`, `Skills`. `Tools` and `Subagents` come from `agent_info_middleware` and render `—` when it's not attached. See [server-middleware.md](server-middleware.md#agent-info-tools--subagents).
 - **Usage** — static meters: `Context` (a `current / max  ████░░  N%` bar where `current` is the most recent single-call input-token count), `Tokens` (cumulative in/out), `Cost`. Context window and per-token prices come from `llm_info_middleware`; when missing, the rows render as `unknown (llm_info_middleware not attached …)`. A footnote under the table flags that cost covers the main agent only when subagents are registered. See [server-middleware.md](server-middleware.md#llm-info-context-window--pricing).
 - **Status** — static: `Server`, `Graph`, `Assistant`, `Thread`, `Status`.
