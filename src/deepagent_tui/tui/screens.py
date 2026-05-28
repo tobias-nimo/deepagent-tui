@@ -520,11 +520,11 @@ class HelpScreen(ModalScreen[None]):
             "\nSkills are agent-specific capabilities exposed by the "
             "connected server. Invoke one as "
         )
-        skills_note.append("/<skill-name>", style=f"bold {accent}")
+        skills_note.append("/<skill-name>", style=f"bold {command}")
         skills_note.append(" (with optional arguments). Run ")
-        skills_note.append("/skills", style=f"bold {accent}")
+        skills_note.append("/skills", style=f"bold {command}")
         skills_note.append(" to see what the current agent can do.")
-        return Group(builtin_heading, table, skills_heading, skills_note)
+        return Group(builtin_heading, Text(""), table, skills_heading, skills_note)
 
 
 class SettingsScreen(ModalScreen[None]):
