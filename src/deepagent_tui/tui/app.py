@@ -676,6 +676,11 @@ class DeepAgentTUI(App):
         # condensed/default/expanded changes apply to existing widgets too.
         # Each entry: {widget, tc, result (None until done), state, progress}.
         self._tool_widget_log: dict[str, dict] = {}
+        # Finalized assistant message widgets paired with their raw source
+        # text. Once a slot is finalized the only surviving copy of the source
+        # is the rendered renderable (not reversible), so we keep the text here
+        # to re-render in place when /settings flips the Markdown toggle.
+        self._assistant_widget_log: list[tuple[Static, str]] = []
         # Subagent (task) bookkeeping. `_subagent_progress` holds the running
         # list of `⎿ tool` lines per task call_id. `_subagent_ns_to_id` maps a
         # stream-subgraph namespace ("tools:<checkpoint_id>") to the task
@@ -714,6 +719,7 @@ class DeepAgentTUI(App):
         self.session.show_settings = self._tui_show_settings
         self.session.set_input = self._tui_set_input
         self.session.rerender_tool_widgets = self._rerender_tool_widgets
+        self.session.rerender_assistant_messages = self._rerender_assistant_messages
         # Route render_info / render_error / render_renderable straight into
         # the message log so each call becomes ONE widget — the multi-line
         # `⎿` corner format depends on staying inside a single Static.
@@ -1704,7 +1710,7 @@ class DeepAgentTUI(App):
                     if msg_type == "ai":
                         ai_text = extract_text_content(msg.get("content", ""))
                         if ai_text.strip() and ai_text.strip() != accumulated.strip():
-                            self._write_renderable(self._render_assistant_text(ai_text))
+                            self._write_assistant_text(ai_text)
                         for tc in msg.get("tool_calls", []):
                             self._write_tool_call(format_tool_call(tc))
                     elif msg_type == "tool":
@@ -1932,6 +1938,7 @@ class DeepAgentTUI(App):
             child.remove()
         self._tool_widgets.clear()
         self._tool_widget_log.clear()
+        self._assistant_widget_log.clear()
         self._clear_plan_card()
 
     def action_scroll_history_up(self) -> None:
@@ -1962,6 +1969,7 @@ class DeepAgentTUI(App):
                 child.remove()
             self._tool_widgets.clear()
             self._tool_widget_log.clear()
+            self._assistant_widget_log.clear()
             self._clear_plan_card()
             render_info(header)
         else:
@@ -1983,7 +1991,7 @@ class DeepAgentTUI(App):
             elif msg_type == "ai":
                 text = extract_text_content(content)
                 if text.strip():
-                    self._write_renderable(self._render_assistant_text(text))
+                    self._write_assistant_text(text)
                 for tc in msg.get("tool_calls", []) or []:
                     self._write_tool_call(format_tool_call(tc))
             elif msg_type == "tool":
@@ -2014,6 +2022,15 @@ class DeepAgentTUI(App):
     def _write_renderable(self, renderable: RenderableType) -> None:
         widget = Static(renderable, classes="msg")
         self._messages.mount(widget)
+        self._scroll_to_input()
+
+    def _write_assistant_text(self, text: str) -> None:
+        """Mount a finalized assistant message and track (widget, raw text) so
+        a /settings Markdown toggle can re-render it in place — see
+        `_rerender_assistant_messages`."""
+        widget = Static(self._render_assistant_text(text), classes="msg")
+        self._messages.mount(widget)
+        self._assistant_widget_log.append((widget, text))
         self._scroll_to_input()
 
     def _write_cmd_renderable(self, renderable: RenderableType) -> None:
@@ -2140,8 +2157,13 @@ class DeepAgentTUI(App):
         """Stop the spinner. If the slot only ever showed Thinking… (no text
         arrived), remove it so it doesn't leave an empty line behind."""
         self._stop_thinking_timer()
-        if self._active_slot is not None and not self._stream_buffer.strip():
-            self._active_slot.remove()
+        if self._active_slot is not None:
+            if self._stream_buffer.strip():
+                # The slot showed streamed text and now becomes a permanent
+                # assistant message — track it for retroactive re-render.
+                self._assistant_widget_log.append((self._active_slot, self._stream_buffer))
+            else:
+                self._active_slot.remove()
         self._active_slot = None
         self._scroll_to_input()
 
@@ -2282,6 +2304,13 @@ class DeepAgentTUI(App):
                 widget.update(call_render)
             else:
                 widget.update(Group(call_render, result_render))
+
+    def _rerender_assistant_messages(self) -> None:
+        """Re-render every finalized assistant message under the current
+        Markdown mode. Called from /settings when the user flips the Markdown
+        toggle so existing transcript text flips too, not just new messages."""
+        for widget, text in self._assistant_widget_log:
+            widget.update(self._render_assistant_text(text))
 
     def _handle_subagent_update(self, namespace: str, data: dict) -> None:
         """Stream a single `updates|<ns>` chunk from inside a subagent.

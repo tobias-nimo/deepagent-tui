@@ -765,6 +765,10 @@ class SettingsScreen(ModalScreen[None]):
             self._session.hitl_enabled = not self._session.hitl_enabled
         elif idx == 2:
             self._session.markdown_enabled = not self._session.markdown_enabled
+            # Re-render existing assistant messages so the toggle applies
+            # retroactively to the whole transcript.
+            if self._session.rerender_assistant_messages is not None:
+                self._session.rerender_assistant_messages()
         elif idx == 3:
             from deepagent_tui.ui import thinking as thinking_anim
 
