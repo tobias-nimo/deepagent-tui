@@ -394,7 +394,10 @@ class ChatTextArea(TextArea):
             if cleaned:
                 self.insert(cleaned, maintain_selection_offset=False)
             return
-        await super()._on_paste(event)
+        # No image paths: let the default TextArea handler insert the text.
+        # Textual's dispatcher already invokes the base _on_paste via MRO
+        # traversal, so calling super() here too would insert the text twice.
+        return
 
 
 class PlanCard(Static):

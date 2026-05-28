@@ -337,6 +337,27 @@ async def test_input_history_recall_empty_is_noop() -> None:
         assert prompt.text == "typed"
 
 
+async def test_plain_paste_inserts_text_once() -> None:
+    """Regression: pasting plain text must insert it exactly once. Textual's
+    dispatcher walks the MRO and invokes both ChatTextArea._on_paste and the
+    base TextArea._on_paste, so the override must not also call super() — doing
+    so doubled the pasted text in the chat bar."""
+    from textual import events
+
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        prompt = app.query_one("#prompt", ChatTextArea)
+        prompt.focus()
+        await pilot.pause()
+        # Mirror how the App delivers a paste: _forward_event marks it forwarded
+        # so the bubble back up to the App isn't re-forwarded (a fresh Paste
+        # posted directly would loop and double on its own, masking the fix).
+        prompt._forward_event(events.Paste(text="hello world"))
+        await pilot.pause()
+        assert prompt.text == "hello world"
+
+
 def _colored_text(t, color: str) -> str:
     """Concatenate the characters of `t` that carry `color` in their span."""
     return "".join(
