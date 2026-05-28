@@ -15,6 +15,10 @@ src/deepagent_tui/
 │   ├── app.py         # DeepAgentTUI Textual app — the main UI
 │   ├── screens.py     # PickerScreen (/resume, /rewind, /skills), HelpScreen (/help, 4-tab modal), SettingsScreen (/settings)
 │   └── inline_approval.py  # InlineApproval widget for HITL prompts
+├── cli/               # Headless `deepagent` command (see docs/cli.md) — reuses the layers below
+│   ├── __init__.py    # main(): argparse (query/resume/list) + dispatch
+│   ├── runner.py      # Headless engine: connect + consume stream + auto-approve interrupt loop
+│   └── output.py      # live/quiet/json printers + resume-hint + list table
 ├── ui/
 │   ├── renderer.py    # render_info/render_error/render_renderable — ⎿ corner blocks via a mount sink installed by the TUI
 │   ├── markdown.py    # render_markdown — themed Rich Markdown

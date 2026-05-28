@@ -5,6 +5,7 @@ In-depth guides for `deepagent-tui`. The top-level [README](../README.md) is the
 ## User guide
 
 - [Configuration](configuration.md) — environment variables, `.env`, file locations
+- [CLI (headless mode)](cli.md) — the `deepagent` command for one-shot queries, resume, and scripting
 - [Input bar](input.md) — `/` commands, `@` file references, `!` shell mode
 - [Commands](commands.md) — every slash command in detail
 - [Key bindings](keybindings.md) — keyboard shortcuts and terminal caveats

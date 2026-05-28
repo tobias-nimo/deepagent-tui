@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 uv sync                              # install (incl. dev extras pinned via uv.lock)
 uv run deepagent-tui                 # launch the TUI (entry: deepagent_tui.tui:run_tui)
+uv run deepagent query "..."         # headless one-shot CLI (entry: deepagent_tui.cli:main; see docs/cli.md)
 uv run pytest                        # smoke test suite (Textual pilot, no server needed)
 uv run pytest tests/test_tui_smoke.py::test_app_boots_and_mounts_core_widgets   # single test
 uv run pytest -k slash               # filter by keyword
@@ -33,6 +34,7 @@ Full map: `docs/architecture.md`. Big-picture summary:
 - **`handlers/`** is the streaming brain. A user message kicks off `client.stream_message(...)` with `stream_mode=["updates","messages"]` and `stream_subgraphs=True`. `handlers/stream.py` finalizes partial text on `updates`, `handlers/tools.py` turns raw tool-call/result payloads into `FormattedToolCall`/`FormattedToolResult`, and `handlers/interrupt.py` parses HITL interrupts and builds the `Command(resume=...)` payload. Subagent activity arrives as `updates|<namespace>` — `_handle_subagent_update` in `tui/app.py` binds each namespace FIFO to the oldest pending subagent task so `⎿` progress lines land on the right widget.
 - **`ui/tool_widgets.py`** renders each tool call inline. Dispatch is by tool name through `_tool_alias` (so `edit_file`, `str_replace_editor`, etc. share a renderer). A widget has a pending state (`○`, dim) that flips to success/error/rejected (`●` in green/red/amber) when the result arrives. To add a tool, add `_call_<n>` and `_result_<n>`, register in `_CALL_RENDERERS`/`_RESULT_RENDERERS`, and alias the source name(s) in `_tool_alias`.
 - **`commands/`** is a registry: each module defines a `@command(...)` and is side-effect-imported from `commands/__init__.py`. To add a slash command, drop a new file there and import it.
+- **`cli/`** is the headless `deepagent` command (separate entry point; the TUI is untouched). `cli/runner.py` replays the TUI's stream → auto-approve-interrupt loop without widgets, reusing `bootstrap.connect`, `client`, `handlers/`, and `storage/db`. See `docs/cli.md`.
 - **`storage/db.py`** is the only SQLite touchpoint (aiosqlite, `~/.deepagent-tui/threads.db`).
 
 ## Deep Agent server contract

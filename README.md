@@ -24,6 +24,15 @@ uv run deepagent-tui
 
 The TUI connects to `LANGGRAPH_URL` (default `http://localhost:2024`), discovers an assistant, opens a fresh thread, and drops you at a prompt. From there, type a message — or use an input prefix: `/` for commands, `@` to reference a workspace file, `!` to run a local shell command (see [Input bar](docs/input.md)).
 
+Prefer a non-interactive shell? The `deepagent` command runs one-shot queries against the same server and prints a `resume` command on exit:
+
+```bash
+deepagent query "summarize the repo"   # answer to stdout, resume hint to stderr
+deepagent resume <thread_id> "..."      # continue a saved conversation
+```
+
+See [CLI (headless mode)](docs/cli.md) for the full command surface.
+
 ## Documentation
 
 Full guides live in [`docs/`](docs/README.md):
