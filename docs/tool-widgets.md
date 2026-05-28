@@ -31,8 +31,8 @@ Dispatch normalizes tool names through `_tool_alias` so different conventions la
 | `edit` | `edit_file`, `str_replace_editor` | **Edit** — diff body with `+`/`-` lines on tinted backgrounds, capped at 7 lines |
 | `write` | `write_file`, `create_file` | **Write** — full content as a single `+` block, capped at 7 lines |
 | `read` | `read_file`, `open_file` | **Read** — `path  (offset=N, limit=M)`; result is `⎿ N lines` |
-| `grep` | `grep` | **Search** — `"pattern"  in <path>  (<glob>)`; result is `⎿ N matches` |
-| `glob` | `glob` | **Find** — `<pattern>  in <path>`; result is `⎿ N matches` |
+| `grep` | `grep` | **Grep** — `"pattern"  in <path>  (<glob>)`; result is `⎿ N matches` |
+| `glob` | `glob` | **Glob** — `<pattern>  in <path>`; result is `⎿ N matches` |
 | `bash` | `bash`, `shell`, `run_shell`, `run_command`, `execute` | **Bash** — command + description; result is the truncated stdout/stderr |
 | `ls` | `ls`, `list_files`, `list_directory` | **List** — path; result is up to 5 entries + `… (+N more)` |
 | `write_todos` | `write_todos`, `todo_write`, `todowrite` | **Todos** — `2/4 · 1 in progress`, with each todo as `● done`, `◐ active`, `○ pending`, `— skipped` |

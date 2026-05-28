@@ -270,7 +270,7 @@ def _call_grep(tc: FormattedToolCall, state: str) -> RenderableType:
         summary.append("  (", style="dim")
         summary.append(str(glob), style="dim")
         summary.append(")", style="dim")
-    return _header("Search", summary if summary.plain else None, state=state)
+    return _header("Grep", summary if summary.plain else None, state=state)
 
 
 def _call_glob(tc: FormattedToolCall, state: str) -> RenderableType:
@@ -284,7 +284,7 @@ def _call_glob(tc: FormattedToolCall, state: str) -> RenderableType:
         if summary.plain:
             summary.append("  in ", style="dim")
         summary.append(str(path), style="dim")
-    return _header("Find", summary if summary.plain else None, state=state)
+    return _header("Glob", summary if summary.plain else None, state=state)
 
 
 def _call_bash(tc: FormattedToolCall, state: str) -> RenderableType:
@@ -420,9 +420,9 @@ def _progress_summary(tc: FormattedToolCall) -> tuple[str, str]:
     if alias == "read":
         return ("Read", str(a.get("file_path") or a.get("path") or ""))
     if alias == "grep":
-        return ("Search", _short(str(a.get("pattern") or a.get("query") or ""), 60))
+        return ("Grep", _short(str(a.get("pattern") or a.get("query") or ""), 60))
     if alias == "glob":
-        return ("Find", _short(str(a.get("pattern") or a.get("glob") or ""), 60))
+        return ("Glob", _short(str(a.get("pattern") or a.get("glob") or ""), 60))
     if alias == "ls":
         return ("List", str(a.get("path") or a.get("directory") or ""))
     if alias == "write_todos":
