@@ -788,11 +788,19 @@ class SettingsScreen(ModalScreen[None]):
 
     def _render_harness(self) -> RenderableType:
         s = self._session
-        rows: list[tuple[str, str]] = [("Model", s.model or "unknown")]
+        rows: list[tuple[str, str]] = [("Model", s.model or "—")]
         rows.append(("Tools", _format_name_list(s.tools)))
         rows.append(("Subagents", _format_name_list(s.subagents)))
         rows.append(("Skills", "Run /skills to see available capabilities"))
-        return _static_table(rows)
+        table = _static_table(rows)
+        if not s.tools and not s.subagents:
+            note = Text(
+                "\n  Tools and subagents aren't available. "
+                "See docs/server-middleware.md to enable them.",
+                style="dim italic",
+            )
+            return Group(table, note)
+        return table
 
     # ── usage tab ──────────────────────────────────────────────────────────
 
@@ -802,43 +810,48 @@ class SettingsScreen(ModalScreen[None]):
         s = self._session
         rows: list[tuple[str, RenderableType]] = []
 
+        has_cost = s.input_price_per_mtok is not None and s.output_price_per_mtok is not None
+        middleware_attached = bool(s.context_window) and has_cost
+
         if s.context_window:
             rows.append(("Context", _context_meter(s.last_input_tokens, s.context_window)))
         else:
-            rows.append((
-                "Context",
-                Text(
-                    "unknown (llm_info_middleware not attached — see docs/server-middleware.md)",
-                    style="dim",
-                ),
-            ))
+            rows.append(("Context", Text("—", style="dim")))
 
         rows.append((
             "Tokens",
-            f"{format_tokens(s.input_tokens)} in / {format_tokens(s.output_tokens)} out",
+            Text(
+                f"{format_tokens(s.input_tokens)} in / {format_tokens(s.output_tokens)} out",
+                style="dim",
+            ),
         ))
-        if s.input_price_per_mtok is not None and s.output_price_per_mtok is not None:
-            rows.append(("Cost", format_cost(s.total_cost)))
+        if has_cost:
+            rows.append(("Cost", Text(format_cost(s.total_cost), style="dim")))
         else:
-            rows.append((
-                "Cost",
-                Text(
-                    "unknown (llm_info_middleware not attached — see docs/server-middleware.md)",
-                    style="dim",
-                ),
-            ))
+            rows.append(("Cost", Text("—", style="dim")))
 
         table = _renderable_table(rows)
-        # The cost-coverage caveat hangs below the table as a paragraph, not
-        # a row, so it reads as a footnote rather than a labelled value.
-        if s.subagents:
-            note = Text(
-                "\n  Note: cost covers the main agent only. Subagent LLM calls "
-                "are not included unless llm_info_middleware is attached to each "
-                "subagent.",
-                style="dim italic",
+        # Caveats hang below the table as paragraphs, not rows, so they read as
+        # footnotes rather than labelled values.
+        notes: list[Text] = []
+        if not middleware_attached:
+            notes.append(
+                Text(
+                    "\n  Cost and context usage aren't available. "
+                    "See docs/server-middleware.md to enable them.",
+                    style="dim italic",
+                )
             )
-            return Group(table, note)
+        elif s.subagents:
+            notes.append(
+                Text(
+                    "\n  Cost covers the main agent only — subagent calls aren't counted. "
+                    "See docs/server-middleware.md to include them.",
+                    style="dim italic",
+                )
+            )
+        if notes:
+            return Group(table, *notes)
         return table
 
     # ── status tab ─────────────────────────────────────────────────────────
@@ -889,21 +902,20 @@ def _format_name_list(names: list[str]) -> str:
 
 
 def _context_meter(used: int, window: int) -> Text:
-    """Renders `12.4k / 200k  ████████░░░░░░░░░░░░  6.2%` for the Usage tab.
+    """Renders `████████░░░░░░░░░░░░░░░░░░░░░░  6% used` for the Usage tab.
 
     `used` is the most recent single-call input token count (closest proxy to
-    current context fill); `window` is the model's max input tokens.
+    current context fill); `window` is the model's max input tokens. The filled
+    span is the theme accent; the remainder is a solid slate track.
     """
-    from deepagent_tui.utils.cost import format_tokens
-
-    bar_width = 20
+    bar_width = 30
     ratio = max(0.0, min(1.0, used / window)) if window else 0.0
-    filled = int(round(ratio * bar_width))
     accent = _theme.current_theme().accent
 
+    filled = int(round(ratio * bar_width))
+
     line = Text()
-    line.append(f"{format_tokens(used)} / {format_tokens(window)}  ", style="dim")
     line.append("█" * filled, style=accent)
-    line.append("░" * (bar_width - filled), style="dim")
-    line.append(f"  {ratio * 100:.1f}%", style="dim")
+    line.append("█" * (bar_width - filled), style="#44475a")
+    line.append(f"  {ratio * 100:.0f}% used", style="dim")
     return line
