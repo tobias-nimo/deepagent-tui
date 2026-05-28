@@ -239,7 +239,7 @@ class HintBar(Static):
             value = ""
 
         if value.startswith("!"):
-            return "Enter to run locally · output stays in the client"
+            return "Warning: shell mode activated"
         if value.startswith("/"):
             return "Tab to complete · Enter to run"
         try:
