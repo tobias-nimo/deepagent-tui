@@ -4,7 +4,7 @@ The chat bar at the bottom is where you talk to the agent. Most input is sent as
 
 ## Plain messages
 
-Anything that doesn't start with `/` or `!` is sent to the agent as a user message. `Enter` submits; `Shift+Enter` (or `Alt+Enter` / `Ctrl+J`) inserts a newline. `@file/path` tokens inside an otherwise-plain message are special — see the `@` file references section below.
+Anything that doesn't start with `/` or `!` is sent to the agent as a user message. `Enter` submits; `Shift+Enter` (or `Alt+Enter` / `Ctrl+J`) inserts a newline. Press `↑` from the first line to recall earlier messages you've submitted (and `↓` to walk back, restoring your draft) — see [keybindings.md](keybindings.md#editing-the-message). `@file/path` tokens inside an otherwise-plain message are special — see the `@` file references section below.
 
 ## `/` — slash commands
 

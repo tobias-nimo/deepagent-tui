@@ -10,7 +10,11 @@ The TUI has three keybinding contexts — the main app, the inline approval prom
 |-----|--------|
 | `Enter` | Submit the message |
 | `Shift+Enter` / `Alt+Enter` / `Ctrl+J` | Insert a newline |
-| `↑` / `↓` | Move the cursor; at the top/bottom of the input, scroll the transcript by one line |
+| `↑` / `↓` | Move the cursor within a multi-line message |
+| `↑` on the first line | Recall the previous (older) submitted message into the input bar |
+| `↓` on the last line | Recall the next (newer) message, or restore your in-progress draft once you step past the newest |
+
+Recall walks the history of messages you've submitted this session (consecutive duplicates collapsed). Whatever you'd typed before pressing `↑` is stashed and comes back when you `↓` past the newest entry. Recall stays bound to the arrows even when a recalled `/command` re-opens the autocomplete, so navigation isn't trapped by the menu. Plain arrows no longer scroll the transcript — use `PgUp` / `PgDn` (below) for that.
 
 ### Autocomplete
 
