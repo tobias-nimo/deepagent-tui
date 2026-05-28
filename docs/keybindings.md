@@ -14,13 +14,18 @@ The TUI has three keybinding contexts — the main app, the inline approval prom
 
 ### Autocomplete
 
-The autocomplete popup appears when you type `/` at the start of an empty message (single-line only — hides if you insert a newline).
+The autocomplete popup serves two input prefixes (see [input.md](input.md)):
+
+- `/` at the start of a single-line message → slash-command matches (hides if you insert a newline).
+- `@token` anywhere in a message → workspace file-path matches (keyed off the cursor, so it works mid-message).
 
 | Key | Action |
 |-----|--------|
-| `Tab` | Insert the highlighted command followed by a space |
+| `Tab` | Insert the highlighted entry — a command (followed by a space), or a file path |
 | `Esc` | Hide the autocomplete |
 | Click | Selects an option |
+
+For `@`, inserting a directory keeps the menu open so you can drill in; inserting a file closes it.
 
 ### Stream / approval cancellation
 

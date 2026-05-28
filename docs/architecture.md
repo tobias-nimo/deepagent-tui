@@ -52,7 +52,7 @@ A normal user message goes through this path:
 
 1. **`ChatTextArea.Submitted`** fires when the user presses `Enter`. `on_chat_text_area_submitted` extracts image paths, mounts the user's message bubble, and snapshots state for the ESC-rollback path.
 
-2. **Command vs. message split** — if the text starts with `/`, it goes to `_run_command`; otherwise it goes to `_submit_message` as a stream worker.
+2. **Prefix dispatch** — the leading character routes the input (see [input.md](input.md)): `!cmd` runs locally via `_run_shell_command` (output rendered inline, never sent to the agent); `/cmd` goes to `_run_command`; anything else is a message. Before a message is submitted, `_resolve_file_refs` rewrites any `@file/path` token that resolves under the workspace root into a `[name](abs path)` link for the agent (the bubble keeps a compact `@name`), then it goes to `_submit_message` as a stream worker.
 
 3. **`_submit_message`** sets `session.status = "streaming"`, mounts a "Thinking…" slot, and calls `client.stream_message(thread_id, assistant_id, content)` with `stream_mode=["updates", "messages"]` and `stream_subgraphs=True`.
 
@@ -72,6 +72,7 @@ A normal user message goes through this path:
 | Want to add a… | Where to look |
 |----------------|---------------|
 | New slash command | `commands/<name>.py` + `@command(...)` + side-effect import in `commands/__init__.py` |
+| New input-bar prefix / mode | `tui/app.py` — `_refresh_autocomplete` (dropdown dispatch via `_ac_mode`) and the prefix branch in `on_chat_text_area_submitted` |
 | New tool widget | `ui/tool_widgets.py` — add a `_call_<n>` and `_result_<n>`, register in `_CALL_RENDERERS` / `_RESULT_RENDERERS`. Alias names in `_tool_alias`. |
 | New theme | `THEMES` dict in `ui/theme.py` |
 | New picker-based command | Build `PickerItem` list, call `session.picker(items, heading)` |

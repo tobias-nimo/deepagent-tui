@@ -22,11 +22,11 @@ cd /path/to/your/agent && uv run langgraph dev --no-browser
 uv run deepagent-tui
 ```
 
-The TUI connects to `LANGGRAPH_URL` (default `http://localhost:2024`), discovers an assistant, opens a fresh thread, and drops you at a prompt.
+The TUI connects to `LANGGRAPH_URL` (default `http://localhost:2024`), discovers an assistant, opens a fresh thread, and drops you at a prompt. From there, type a message — or use an input prefix: `/` for commands, `@` to reference a workspace file, `!` to run a local shell command (see [Input bar](docs/input.md)).
 
 ## Documentation
 
 Full guides live in [`docs/`](docs/README.md):
 
-- **Using it** — [Configuration](docs/configuration.md) · [Commands](docs/commands.md) · [Key bindings](docs/keybindings.md) · [Themes](docs/themes.md) · [Images](docs/images.md) · [HITL approvals](docs/hitl.md) · [Threads](docs/threads.md) · [Skills](docs/skills.md) · [Troubleshooting](docs/troubleshooting.md)
+- **Using it** — [Configuration](docs/configuration.md) · [Input bar](docs/input.md) · [Commands](docs/commands.md) · [Key bindings](docs/keybindings.md) · [Themes](docs/themes.md) · [Images](docs/images.md) · [HITL approvals](docs/hitl.md) · [Threads](docs/threads.md) · [Skills](docs/skills.md) · [Troubleshooting](docs/troubleshooting.md)
 - **Hacking on it** — [Architecture](docs/architecture.md) · [Tool widgets](docs/tool-widgets.md) · [Testing](docs/testing.md)
