@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 from textual.containers import Container, VerticalScroll
-from textual.widgets import OptionList
+from textual.widgets import OptionList, Static
 
 from deepagent_tui import bootstrap as bootstrap_module
 from deepagent_tui.tui.app import (
@@ -164,3 +164,152 @@ async def test_config_toggle_persists(monkeypatch: pytest.MonkeyPatch, tmp_path)
         assert app.session.tool_widget_mode != before_mode
         assert tw._WIDGET_MODE == app.session.tool_widget_mode
         assert config_store.load_config().tool_widget_mode == app.session.tool_widget_mode
+
+
+async def test_at_prefix_reveals_file_list(tmp_path) -> None:
+    (tmp_path / "alpha.txt").write_text("x")
+    (tmp_path / "beta.txt").write_text("y")
+    (tmp_path / "subdir").mkdir()
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.session.workspace_root = str(tmp_path)
+        prompt = app.query_one("#prompt", ChatTextArea)
+        prompt.text = "look at @a"
+        prompt.move_cursor(prompt.document.end)
+        app._refresh_autocomplete(prompt.text)
+        ac = app.query_one("#autocomplete", OptionList)
+        assert "-hidden" not in ac.classes
+        assert app._ac_mode == "file"
+        ids = {ac.get_option_at_index(i).id for i in range(ac.option_count)}
+        assert "alpha.txt" in ids
+
+
+async def test_at_before_workspace_known_shows_hint() -> None:
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.session.workspace_root = None  # no message sent yet
+        prompt = app.query_one("#prompt", ChatTextArea)
+        prompt.text = "see @"
+        prompt.move_cursor(prompt.document.end)
+        app._refresh_autocomplete(prompt.text)
+        ac = app.query_one("#autocomplete", OptionList)
+        assert "-hidden" not in ac.classes
+        assert ac.option_count == 1
+        # The hint row carries no id, so Tab / click does nothing.
+        assert ac.get_option_at_index(0).id is None
+
+
+async def test_shell_before_workspace_known_does_not_run() -> None:
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.session.workspace_root = None
+        app._run_shell_command("!echo should-not-run", "echo should-not-run")
+        msgs = app.query_one("#messages", Container)
+        joined = "\n".join(
+            str(w.content) for w in msgs.children if isinstance(w, Static)
+        )
+        assert "Send a message first" in joined
+
+
+async def test_at_completion_replaces_token(tmp_path) -> None:
+    (tmp_path / "alpha.txt").write_text("x")
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.session.workspace_root = str(tmp_path)
+        prompt = app.query_one("#prompt", ChatTextArea)
+        prompt.text = "look at @a"
+        prompt.move_cursor(prompt.document.end)
+        app._refresh_autocomplete(prompt.text)
+        app._apply_file_completion("alpha.txt")
+        assert prompt.text == "look at @alpha.txt "
+        assert app._ac_mode == "none"
+
+
+async def test_email_does_not_trigger_file_list(tmp_path) -> None:
+    (tmp_path / "alpha.txt").write_text("x")
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.session.workspace_root = str(tmp_path)
+        prompt = app.query_one("#prompt", ChatTextArea)
+        prompt.text = "mail me@example"
+        prompt.move_cursor(prompt.document.end)
+        app._refresh_autocomplete(prompt.text)
+        ac = app.query_one("#autocomplete", OptionList)
+        assert "-hidden" in ac.classes
+        assert app._ac_mode == "none"
+
+
+async def test_render_shell_output_mounts_widget() -> None:
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app._render_shell_output("hello\nworld", 0)
+        msgs = app.query_one("#messages", Container)
+        joined = "\n".join(
+            str(w.content) for w in msgs.children if isinstance(w, Static)
+        )
+        assert "hello" in joined and "world" in joined
+
+
+async def test_exec_shell_runs_local_command() -> None:
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app._exec_shell("echo hello-shell-marker")
+        msgs = app.query_one("#messages", Container)
+        joined = "\n".join(
+            str(w.content) for w in msgs.children if isinstance(w, Static)
+        )
+        assert "hello-shell-marker" in joined
+
+
+async def test_resolve_file_refs_rewrites_existing(tmp_path) -> None:
+    books = tmp_path / "books"
+    books.mkdir()
+    (books / "blah.md").write_text("hi")
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.session.workspace_root = str(tmp_path)
+        display, agent = app._resolve_file_refs("read @books/blah.md please")
+        assert display == "read @blah.md please"
+        assert agent == f"read [blah.md]({books / 'blah.md'}) please"
+
+
+async def test_resolve_file_refs_leaves_unknown(tmp_path) -> None:
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.session.workspace_root = str(tmp_path)
+        # A casual @-mention that isn't a real file stays verbatim.
+        display, agent = app._resolve_file_refs("ping @john now")
+        assert display == "ping @john now"
+        assert agent == "ping @john now"
+
+
+def _colored_text(t, color: str) -> str:
+    """Concatenate the characters of `t` that carry `color` in their span."""
+    return "".join(
+        t.plain[s.start : s.end] for s in t.spans if color in str(s.style)
+    )
+
+
+def test_shell_message_renders_fully_in_command_color() -> None:
+    from deepagent_tui.tui.app import _command_color, _user_message_text
+
+    t = _user_message_text("!ls -la /tmp")
+    assert "!ls -la /tmp" in _colored_text(t, _command_color())
+
+
+def test_file_ref_token_renders_in_command_color() -> None:
+    from deepagent_tui.tui.app import _command_color, _user_message_text
+
+    t = _user_message_text("look at @src/main.py please")
+    colored = _colored_text(t, _command_color())
+    assert "@src/main.py" in colored
+    assert "please" not in colored

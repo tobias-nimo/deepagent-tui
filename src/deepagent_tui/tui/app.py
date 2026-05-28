@@ -53,27 +53,55 @@ _DEBUG = os.environ.get("DEEPAGENT_DEBUG") == "1"
 
 
 def _command_color() -> str:
-    """Hex color used for slash/question hints and autocomplete entries."""
+    """Hex color used for slash-command / file-path / shell hints and
+    autocomplete entries."""
     return _theme.current_theme().command
 
 
+# Max lines of `!`-shell output to mount inline before truncating, so a noisy
+# command can't drop a thousand-line widget into the transcript.
+_SHELL_MAX_LINES = 200
+
+
 def _user_message_text(text: str) -> Text:
-    """Render a submitted message. If it starts with a slash command, paint
-    the `/name` token in the command accent color so it stands out from the
-    rest of the user message. Subsequent lines are indented to align past
-    the leading `❯ ` prefix."""
+    """Render a submitted message, painting prefixes in the command accent
+    color so they stand out: `/name` for slash commands, the *entire* line
+    for `!` shell commands, and any `@file/path` tokens elsewhere. Subsequent
+    lines are indented to align past the leading `❯ ` prefix."""
     indent = "\n  "
     accent = _theme.ACCENT_COLOR
+    cmd = _command_color()
     out = Text()
     out.append("❯ ", style=accent)
+
+    # `!cmd` shell mode: the whole line renders in the command color.
+    if text.startswith("!"):
+        out.append(text.replace("\n", indent), style=cmd)
+        return out
+
+    # `/command`: paint just the leading `/name` token.
     if text.startswith("/"):
         head, sep, tail = text.partition(" ")
-        out.append(head.replace("\n", indent), style=_command_color())
+        out.append(head.replace("\n", indent), style=cmd)
         if sep:
             out.append((sep + tail).replace("\n", indent))
         return out
-    out.append(text.replace("\n", indent))
+
+    # Plain message: highlight `@file/path` references inline.
+    _append_with_file_refs(out, text.replace("\n", indent), cmd)
     return out
+
+
+def _append_with_file_refs(out: Text, text: str, color: str) -> None:
+    """Append `text` to `out`, painting whitespace-delimited `@…` tokens in
+    `color` and leaving surrounding prose default-styled."""
+    import re
+
+    for piece in re.split(r"(\s+)", text):
+        if len(piece) > 1 and piece.startswith("@"):
+            out.append(piece, style=color)
+        else:
+            out.append(piece)
 
 
 def _user_message_with_attachments(
@@ -210,8 +238,15 @@ class HintBar(Static):
         except Exception:
             value = ""
 
+        if value.startswith("!"):
+            return "Enter to run locally · output stays in the client"
         if value.startswith("/"):
             return "Tab to complete · Enter to run"
+        try:
+            if "@" in value and self.app._file_ref_context(value) is not None:
+                return "Tab to insert file path"
+        except Exception:
+            pass
         if value.strip():
             return "Enter to send · Shift+Enter for newline"
 
@@ -225,8 +260,8 @@ class HintBar(Static):
 
 
 class WelcomeBanner(Static):
-    """Top banner: ASCII graph name plus a `/` and `?` hint line. Scrolls with content.
-    The workspace path is shown by the hint bar, not here."""
+    """Top banner: ASCII graph name plus a `/`, `@`, `!` hint line. Scrolls
+    with content. The workspace path is shown by the hint bar, not here."""
 
     def __init__(self, session: Session, **kwargs: Any) -> None:
         super().__init__("", **kwargs)
@@ -267,8 +302,11 @@ class WelcomeBanner(Static):
                 ("/", f"bold {cmd}"),
                 (" for commands", "dim"),
                 sep,
-                ("?", f"bold {cmd}"),
-                (" for shortcuts", "dim"),
+                ("@", f"bold {cmd}"),
+                (" for file paths", "dim"),
+                sep,
+                ("!", f"bold {cmd}"),
+                (" shell mode", "dim"),
             )
         )
 
@@ -627,6 +665,9 @@ class DeepAgentTUI(App):
         self.session.language = _cfg.language
         _set_widget_mode(_cfg.tool_widget_mode)
         self._stream_buffer: str = ""
+        # Which autocomplete dropdown is currently showing, so Tab / selection
+        # know what to do: "command" (/), "file" (@), or "none".
+        self._ac_mode: str = "none"
         self._active_slot: Static | None = None
         self._thinking_timer = None
         self._thinking_frame: int = 0
@@ -723,16 +764,30 @@ class DeepAgentTUI(App):
 
     def _refresh_autocomplete(self, value: str) -> None:
         ac = self.query_one("#autocomplete", OptionList)
-        # Slash-command autocomplete is single-line by nature; hide if the
-        # user has started a multi-line message.
-        if not value.startswith("/") or "\n" in value:
-            was_visible = "-hidden" not in ac.classes
-            ac.add_class("-hidden")
-            ac.clear_options()
-            if was_visible:
-                self._scroll_to_input()
+
+        # `/command` autocomplete — single-line by nature.
+        if value.startswith("/") and "\n" not in value:
+            self._populate_command_ac(ac, value)
             return
 
+        # `@token` at the cursor → workspace file-path suggestions. Works
+        # mid-message, so it's keyed off the cursor rather than the buffer
+        # prefix.
+        file_ctx = self._file_ref_context(value)
+        if file_ctx is not None and self._populate_file_ac(ac, file_ctx):
+            return
+
+        self._ac_mode = "none"
+        self._hide_autocomplete_list(ac)
+
+    def _hide_autocomplete_list(self, ac: OptionList) -> None:
+        was_visible = "-hidden" not in ac.classes
+        ac.add_class("-hidden")
+        ac.clear_options()
+        if was_visible:
+            self._scroll_to_input()
+
+    def _populate_command_ac(self, ac: OptionList, value: str) -> None:
         from deepagent_tui.commands import all_commands
 
         prefix = value[1:].split(None, 1)[0] if len(value) > 1 else ""
@@ -744,10 +799,8 @@ class DeepAgentTUI(App):
         )
         ac.clear_options()
         if not matches:
-            was_visible = "-hidden" not in ac.classes
-            ac.add_class("-hidden")
-            if was_visible:
-                self._scroll_to_input()
+            self._ac_mode = "none"
+            self._hide_autocomplete_list(ac)
             return
 
         name_width = max(len(n) for n, _ in matches) + 2
@@ -760,9 +813,155 @@ class DeepAgentTUI(App):
                 (desc or "", "dim"),
             )
             ac.add_option(Option(label, id=name))
+        self._ac_mode = "command"
         ac.remove_class("-hidden")
         ac.refresh(layout=True)
         self._scroll_to_input()
+
+    def _file_ref_context(self, value: str) -> tuple[int, int, int, str] | None:
+        """If an `@token` sits at the cursor, return
+        `(row, start_col, end_col, query)` describing it (query is the text
+        after `@`); otherwise None. `@` must be the first char of the token,
+        so `user@host` doesn't trigger."""
+        if "@" not in value:
+            return None
+        try:
+            prompt = self.query_one("#prompt", ChatTextArea)
+        except Exception:
+            return None
+        row, col = prompt.cursor_location
+        try:
+            line = prompt.document.get_line(row)
+        except Exception:
+            return None
+        before = line[:col]
+        start = col
+        while start > 0 and not before[start - 1].isspace():
+            start -= 1
+        token = before[start:]
+        if not token.startswith("@"):
+            return None
+        return (row, start, col, token[1:])
+
+    def _populate_file_ac(
+        self, ac: OptionList, ctx: tuple[int, int, int, str]
+    ) -> bool:
+        """List workspace files matching the `@query`. Returns True if the
+        dropdown was shown, False otherwise (caller hides it). Globbing runs on
+        the local filesystem under the agent's workspace root — never the TUI's
+        own cwd — so before the workspace is known (no message sent yet) it
+        shows a hint instead of leaking the directory the TUI was launched
+        from."""
+        if not self.session.workspace_root:
+            ac.clear_options()
+            ac.add_option(
+                Option(
+                    Text(
+                        "Send a message first to load the workspace before "
+                        "browsing files",
+                        style="dim",
+                    )
+                )  # no id → Tab / click is a no-op
+            )
+            self._ac_mode = "file"
+            ac.remove_class("-hidden")
+            ac.refresh(layout=True)
+            self._scroll_to_input()
+            return True
+
+        _row, _start, _end, query = ctx
+        root = Path(self.session.workspace_root)
+        if "/" in query:
+            sub, _, partial = query.rpartition("/")
+            base = root / sub if sub else root
+        else:
+            sub, partial = "", query
+            base = root
+
+        try:
+            entries = sorted(
+                base.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())
+            )
+        except Exception:
+            return False
+
+        partial_lc = partial.lower()
+        cmd = _command_color()
+        ac.clear_options()
+        count = 0
+        for p in entries:
+            name = p.name
+            if name.startswith(".") and not partial.startswith("."):
+                continue
+            if partial_lc and not name.lower().startswith(partial_lc):
+                continue
+            rel = f"{sub}/{name}" if sub else name
+            if p.is_dir():
+                rel += "/"
+            ac.add_option(Option(Text(rel, style=f"bold {cmd}"), id=rel))
+            count += 1
+            if count >= 20:
+                break
+
+        if count == 0:
+            self._ac_mode = "none"
+            self._hide_autocomplete_list(ac)
+            return False
+        self._ac_mode = "file"
+        ac.remove_class("-hidden")
+        ac.refresh(layout=True)
+        self._scroll_to_input()
+        return True
+
+    def _apply_file_completion(self, rel: str) -> None:
+        """Replace the `@token` at the cursor with the chosen path. Files get
+        a trailing space and close the menu; directories stay open so the user
+        can drill in."""
+        prompt = self.query_one("#prompt", ChatTextArea)
+        ctx = self._file_ref_context(prompt.text)
+        if ctx is None:
+            return
+        row, start, end, _ = ctx
+        is_dir = rel.endswith("/")
+        insert = f"@{rel}" if is_dir else f"@{rel} "
+        prompt.replace(insert, (row, start), (row, end))
+        prompt.move_cursor((row, start + len(insert)))
+        if is_dir:
+            self._refresh_autocomplete(prompt.text)
+        else:
+            self._ac_mode = "none"
+            self._hide_autocomplete_list(self.query_one("#autocomplete", OptionList))
+        prompt.focus()
+
+    def _resolve_file_refs(self, text: str) -> tuple[str, str]:
+        """Split a submitted message's `@workspace/rel/path` tokens into a
+        display form and an agent form:
+          - display: `@<basename>` (rendered command-colored)
+          - agent:   `[<basename>](<absolute path>)` markdown link
+        Only tokens that resolve to an existing path under the workspace root
+        are rewritten; casual `@mentions` and typos are left verbatim."""
+        import re
+
+        root = self.session.workspace_root
+        if not root or "@" not in text:
+            return text, text
+
+        display_parts: list[str] = []
+        agent_parts: list[str] = []
+        for piece in re.split(r"(\s+)", text):
+            rewritten = False
+            if len(piece) > 1 and piece.startswith("@"):
+                rel = piece[1:]
+                abs_path = os.path.join(root, rel)
+                if os.path.exists(abs_path):
+                    base = os.path.basename(rel.rstrip("/")) or rel
+                    display_parts.append(f"@{base}")
+                    agent_parts.append(f"[{base}]({abs_path})")
+                    rewritten = True
+            if not rewritten:
+                display_parts.append(piece)
+                agent_parts.append(piece)
+        return "".join(display_parts), "".join(agent_parts)
 
     def action_hide_autocomplete(self) -> None:
         # While an inline approval is up, Esc cancels the approval (the
@@ -890,15 +1089,21 @@ class DeepAgentTUI(App):
                 pass
             return
         ac = self.query_one("#autocomplete", OptionList)
-        if "-hidden" in ac.classes:
+        if "-hidden" in ac.classes or ac.option_count == 0:
             return
-        if ac.option_count == 0:
+        if self._ac_mode == "file":
+            first = ac.get_option_at_index(0)
+            if first.id is not None:
+                self._apply_file_completion(first.id)
             return
-        first = ac.get_option_at_index(0)
-        if first.id is None:
+        if self._ac_mode == "command":
+            first = ac.get_option_at_index(0)
+            if first.id is None:
+                return
+            self._set_prompt_text(f"/{first.id} ")
+            self.action_hide_autocomplete()
             return
-        self._set_prompt_text(f"/{first.id} ")
-        self.action_hide_autocomplete()
+        # "none": nothing to complete.
 
     def on_option_list_option_selected(
         self, event: OptionList.OptionSelected
@@ -906,11 +1111,16 @@ class DeepAgentTUI(App):
         # Only the autocomplete OptionList lives in the main app.
         if event.option_list.id != "autocomplete":
             return
+        if self._ac_mode == "file":
+            if event.option_id is not None:
+                self._apply_file_completion(event.option_id)
+            return
         if event.option_id is None:
             return
-        prompt = self._set_prompt_text(f"/{event.option_id} ")
-        self.action_hide_autocomplete()
-        prompt.focus()
+        if self._ac_mode == "command":
+            prompt = self._set_prompt_text(f"/{event.option_id} ")
+            self.action_hide_autocomplete()
+            prompt.focus()
 
     def _set_prompt_text(self, text: str) -> "ChatTextArea":
         prompt = self.query_one("#prompt", ChatTextArea)
@@ -934,6 +1144,14 @@ class DeepAgentTUI(App):
             self._refresh_attachments_preview()
         self.action_hide_autocomplete()
 
+        # `!cmd` runs a shell command on the local machine. Its output is
+        # rendered inline and is NOT forwarded to the agent.
+        if text.startswith("!"):
+            command = text[1:].strip()
+            if command:
+                self._run_shell_command(text, command)
+            return
+
         from deepagent_tui.commands import is_command
 
         image_paths: list[str] = []
@@ -945,14 +1163,21 @@ class DeepAgentTUI(App):
             if image_paths:
                 text = cleaned or "Please analyze this image."
 
+        # Rewrite `@workspace/rel/path` file references: the agent receives a
+        # `[name](abs path)` markdown link it can act on, while the bubble shows
+        # a compact `@name`. Commands are left untouched.
+        display_text, agent_text = (
+            (text, text) if is_command(text) else self._resolve_file_refs(text)
+        )
+
         # Mark the start of this turn so ESC-rollback can remove every widget
         # mounted after this point (user bubble, tool call panels, tool
         # results, partial assistant markdown, the active thinking slot).
         if not is_command(text):
             self._turn_start_index = len(self._messages.children)
         widget = _user_message_widget(
-            _user_message_with_attachments(text, image_paths),
-            multiline="\n" in text or bool(image_paths),
+            _user_message_with_attachments(display_text, image_paths),
+            multiline="\n" in display_text or bool(image_paths),
         )
         self._messages.mount(widget)
         self._scroll_to_input()
@@ -978,9 +1203,9 @@ class DeepAgentTUI(App):
         if image_paths:
             from deepagent_tui.utils.images import build_multimodal_content
 
-            content: str | list = build_multimodal_content(text, image_paths)
+            content: str | list = build_multimodal_content(agent_text, image_paths)
         else:
-            content = text
+            content = agent_text
 
         # Snapshot the turn so ESC can roll it back. Stash the raw input
         # (with any newlines the user typed), not the stripped/cleaned
@@ -1335,6 +1560,93 @@ class DeepAgentTUI(App):
             self._stream_worker = None
             self._active_run_id = None
             self._turn_start_index = None
+
+    # ── Local shell (`!`) ───────────────────────────────────────────────────
+
+    def _run_shell_command(self, display: str, command: str) -> None:
+        """Echo `!command` as a user-style bubble and run it locally in a
+        worker so the UI stays responsive while it executes. The command runs
+        in the agent's workspace root, so before that's known (no message sent
+        yet) we show a hint rather than falling back to the TUI's own cwd."""
+        bubble = _user_message_widget(_user_message_text(display), multiline=False)
+        self._messages.mount(bubble)
+        self._scroll_to_input()
+        if not self.session.workspace_root:
+            from deepagent_tui.ui.renderer import render_info
+
+            render_info(
+                "Send a message first to load the workspace before running "
+                "shell commands."
+            )
+            return
+        worker = self.run_worker(
+            self._exec_shell(command),
+            exclusive=False,
+            name="shell",
+            exit_on_error=False,
+        )
+        self._track_worker(worker)
+
+    async def _exec_shell(self, command: str) -> None:
+        """Run `command` through the user's default shell in the agent's
+        workspace root, capturing stdout + stderr together, and render the
+        result inline."""
+        import asyncio
+
+        progress = Static(Text("  ⎿ running…", style="dim"), classes="msg-cmd")
+        self._messages.mount(progress)
+        self._scroll_to_input()
+
+        shell = os.environ.get("SHELL", "/bin/sh")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                shell, "-c", command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                cwd=self.session.workspace_root or None,
+            )
+            out, _ = await proc.communicate()
+            output = out.decode("utf-8", errors="replace")
+            rc = proc.returncode or 0
+        except Exception as e:  # noqa: BLE001
+            output = str(e)
+            rc = -1
+        finally:
+            try:
+                await progress.remove()
+            except Exception:
+                pass
+        self._render_shell_output(output, rc)
+
+    def _render_shell_output(self, output: str, rc: int) -> None:
+        """Mount shell output under a dim `⎿` corner; red on non-zero exit,
+        truncated past `_SHELL_MAX_LINES`."""
+        lines = output.rstrip("\n").splitlines()
+        truncated = 0
+        if len(lines) > _SHELL_MAX_LINES:
+            truncated = len(lines) - _SHELL_MAX_LINES
+            lines = lines[:_SHELL_MAX_LINES]
+        if not lines:
+            lines = ["(no output)"]
+
+        body = Text()
+        body.append("  ")
+        body.append("⎿", style="dim")
+        style = "dim" if rc == 0 else "red"
+        for i, ln in enumerate(lines):
+            if i:
+                body.append("\n    ")
+                body.append(ln, style=style)
+            else:
+                body.append(" ")
+                body.append(ln, style=style)
+        if truncated:
+            body.append(
+                f"\n    … {truncated} more line{'s' if truncated != 1 else ''}",
+                style="dim",
+            )
+        self._write_cmd_renderable(body)
+        self._scroll_to_input()
 
     async def _consume_stream(
         self,
