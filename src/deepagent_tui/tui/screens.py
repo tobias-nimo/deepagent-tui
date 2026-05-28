@@ -707,6 +707,7 @@ class SettingsScreen(ModalScreen[None]):
             ("Tools", self._session.tool_widget_mode),
             ("Theme", current_theme().name),
             ("Text", "markdown" if self._session.markdown_enabled else "plain"),
+            ("Thinking", self._session.thinking_animation),
             ("Language", self._session.language.lower()),
         ]
 
@@ -770,6 +771,17 @@ class SettingsScreen(ModalScreen[None]):
         elif idx == 3:
             self._session.markdown_enabled = not self._session.markdown_enabled
         elif idx == 4:
+            from deepagent_tui.ui import thinking as thinking_anim
+
+            keys = thinking_anim.ANIMATION_KEYS
+            try:
+                pos = keys.index(self._session.thinking_animation)
+            except ValueError:
+                pos = 0
+            new_key = keys[(pos + delta) % len(keys)]
+            self._session.thinking_animation = new_key
+            thinking_anim.set_animation(new_key)
+        elif idx == 5:
             # Static placeholder — only "english" is offered today.
             pass
 
@@ -779,6 +791,7 @@ class SettingsScreen(ModalScreen[None]):
                 tool_widget_mode=self._session.tool_widget_mode,  # type: ignore[arg-type]
                 markdown_enabled=self._session.markdown_enabled,
                 language=self._session.language,
+                thinking_animation=self._session.thinking_animation,
             )
         )
         self._refresh_tabs()

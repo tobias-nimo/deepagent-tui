@@ -20,6 +20,7 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 import deepagent_tui.ui.theme as _theme
+import deepagent_tui.ui.thinking as _thinking_anim
 from deepagent_tui.client import AgentClient
 from deepagent_tui.config import settings
 from deepagent_tui.handlers.interrupt import (
@@ -311,15 +312,6 @@ class WelcomeBanner(Static):
         )
 
         self.update(Group(*rows))
-
-
-_THINKING_FRAMES = ["⠋", "⠙", "⠚", "⠞", "⠖", "⠦", "⠴", "⠲", "⠳", "⠓"]
-
-
-def _thinking_renderable(frame: int) -> Text:
-    spinner = _THINKING_FRAMES[frame % len(_THINKING_FRAMES)]
-    accent = _theme.ACCENT_COLOR
-    return Text.assemble((spinner, f"bold {accent}"), ("  Thinking…", "dim"))
 
 
 class ChatTextArea(TextArea):
@@ -663,7 +655,9 @@ class DeepAgentTUI(App):
         self.session.tool_widget_mode = _cfg.tool_widget_mode
         self.session.markdown_enabled = _cfg.markdown_enabled
         self.session.language = _cfg.language
+        self.session.thinking_animation = _cfg.thinking_animation
         _set_widget_mode(_cfg.tool_widget_mode)
+        _thinking_anim.set_animation(_cfg.thinking_animation)
         self._stream_buffer: str = ""
         # Which autocomplete dropdown is currently showing, so Tab / selection
         # know what to do: "command" (/), "file" (@), or "none".
@@ -2114,7 +2108,7 @@ class DeepAgentTUI(App):
         Thinking… animation in it. The same widget is later swapped to the
         streaming markdown so the layout doesn't bounce."""
         self._stop_thinking_timer()
-        slot = Static(_thinking_renderable(0), classes="msg")
+        slot = Static(_thinking_anim.render(0), classes="msg")
         self._messages.mount(slot)
         self._active_slot = slot
         self._thinking_frame = 0
@@ -2125,7 +2119,7 @@ class DeepAgentTUI(App):
         if self._active_slot is None or self._stream_buffer:
             return
         self._thinking_frame += 1
-        self._active_slot.update(_thinking_renderable(self._thinking_frame))
+        self._active_slot.update(_thinking_anim.render(self._thinking_frame))
 
     def _apply_streaming_text(self, text: str) -> None:
         """Replace the active slot's content with rendered markdown."""

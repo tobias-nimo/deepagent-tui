@@ -44,6 +44,7 @@ class Session:
     tool_widget_mode: str = "default"  # "compacted" | "default" | "expanded"; see ui/tool_widgets.py
     markdown_enabled: bool = True  # when False, assistant chunks render as raw text (debug aid)
     language: str = "english"  # static for now; placeholder for future i18n
+    thinking_animation: str = "braille"  # which "Thinking…" animation to play; see ui/thinking.py
 
     def add_usage(self, input_tokens: int, output_tokens: int) -> None:
         """Accumulate token usage and (when prices are known) cost.

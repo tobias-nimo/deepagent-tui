@@ -20,6 +20,14 @@ _CONFIG_DIR = Path.home() / ".deepagent-tui"
 _CONFIG_FILE = _CONFIG_DIR / "config.toml"
 
 _VALID_WIDGET_MODES: tuple[WidgetMode, ...] = ("compacted", "default", "expanded")
+_VALID_THINKING_ANIMATIONS: tuple[str, ...] = (
+    "braille",
+    "pulse",
+    "shimmer",
+    "gradient",
+    "typewriter",
+    "sparkle",
+)
 
 # Legacy → modern rename. Pre-v2 the toggle was binary ("condensed"/"expanded"),
 # where "expanded" meant the current "default" (capped) view. We migrate the
@@ -35,6 +43,7 @@ class UserConfig:
     tool_widget_mode: WidgetMode = "default"
     markdown_enabled: bool = True
     language: str = "english"
+    thinking_animation: str = "braille"
 
 
 def load_config() -> UserConfig:
@@ -63,6 +72,9 @@ def load_config() -> UserConfig:
     lang = data.get("language")
     if isinstance(lang, str) and lang:
         cfg.language = lang
+    anim = data.get("thinking_animation")
+    if isinstance(anim, str) and anim in _VALID_THINKING_ANIMATIONS:
+        cfg.thinking_animation = anim
     return cfg
 
 
