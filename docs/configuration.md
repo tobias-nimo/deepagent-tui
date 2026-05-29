@@ -39,15 +39,16 @@ If `THREAD_ID` is set, the TUI attaches to that thread (the server is not asked 
 | Path | Purpose |
 |------|---------|
 | `~/.deepagent-tui/threads.db` | SQLite thread index (powers `/resume`) |
-| `~/.deepagent-tui/theme` | Persisted theme name written by `/theme` |
-| `~/.deepagent-tui/config.toml` | Persisted `/settings` toggles: auto-approve (HITL), tool-widget mode, markdown on/off, thinking animation, language |
+| `~/.deepagent-tui/config.toml` | Persisted preferences: theme, auto-approve (HITL), tool-widget mode, markdown on/off, thinking animation, language |
 | `.env` | Per-directory configuration overrides |
+
+A legacy `~/.deepagent-tui/theme` file from older versions is migrated into `config.toml` automatically on first launch, then removed.
 
 ## Theme precedence
 
 When the TUI starts, the theme is chosen in this order:
 
-1. `~/.deepagent-tui/theme` if present and valid
+1. `theme` in `~/.deepagent-tui/config.toml` if present and valid
 2. `DEEPAGENT_THEME` env var if set and valid
 3. `default`
 

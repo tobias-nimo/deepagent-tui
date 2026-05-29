@@ -23,7 +23,7 @@ src/deepagent_tui/
 │   ├── renderer.py    # render_info/render_error/render_renderable — ⎿ corner blocks via a mount sink installed by the TUI
 │   ├── markdown.py    # render_markdown — themed Rich Markdown
 │   ├── tool_widgets.py  # Per-tool inline widgets (Edit, Read, Bash, Todos, etc.)
-│   └── theme.py       # 8 themes + persistence + markdown style overrides
+│   └── theme.py       # 9 themes + persistence (via config_store) + markdown style overrides
 ├── commands/
 │   ├── __init__.py    # @command registry + dispatch
 │   ├── builtins.py    # /clear /exit
@@ -43,7 +43,7 @@ src/deepagent_tui/
 │   └── interrupt.py   # InterruptInfo + extract_interrupts + build_resume_value
 ├── storage/
 │   ├── db.py          # SQLite thread index (aiosqlite)
-│   └── config_store.py  # ~/.deepagent-tui/config.toml (HITL, tool-widget mode, markdown, thinking animation, language)
+│   └── config_store.py  # ~/.deepagent-tui/config.toml (theme, HITL, tool-widget mode, markdown, thinking animation, language)
 └── utils/
     ├── tokens.py      # extract_usage(msg) → (input, output)
     ├── cost.py        # format_cost / format_tokens (no hardcoded pricing — see llm_info_middleware)

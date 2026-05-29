@@ -650,8 +650,8 @@ class DeepAgentTUI(App):
         )
         self.session = Session()
         # Hydrate user-tunable config (HITL + tool-widget verbosity) from
-        # ~/.deepagent-tui/config.toml. Theme has its own file and is loaded
-        # by ui.theme on import.
+        # ~/.deepagent-tui/config.toml. Theme lives in the same file but is
+        # loaded by ui.theme on import.
         from deepagent_tui.storage.config_store import load_config
         from deepagent_tui.ui.tool_widgets import set_widget_mode as _set_widget_mode
 

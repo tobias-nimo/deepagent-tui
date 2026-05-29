@@ -64,7 +64,7 @@ A call with no matching result yet (pending or interrupted) is emitted without t
 ### `/theme [name]`
 
 - **No argument** — opens a picker (`PickerScreen`) listing every theme; each row shows an interpolated gradient bar plus accent/command color swatches, with the active theme tagged `current`. Selecting one applies + persists it (`⎿ Theme set to: <name>`); dismissing prints `⎿ Cancelled.`
-- **`/theme <name>`** — switches the theme directly and writes the choice to `~/.deepagent-tui/theme` so it persists across restarts.
+- **`/theme <name>`** — switches the theme directly and writes the choice to `~/.deepagent-tui/config.toml` so it persists across restarts.
 
 The welcome banner repaints after any command, so theme changes take effect immediately.
 
@@ -77,7 +77,7 @@ Opens a four-tab modal docked to the bottom 60% of the screen (the chat behind s
   - `Markdown rendering` — `on` renders assistant text through Rich Markdown; `off` falls back to raw `Text` (useful for debugging streamed payloads). Changing this re-renders existing assistant messages in the transcript, not just future ones.
   - `Thinking animation` — cycles the streaming "Thinking…" animation: `braille`, `pulse`, `shimmer`, `gradient`, `typewriter`, `sparkle` (`shimmer`/`gradient` follow the active theme).
   - `Language` — placeholder locked to `english` today.
-  - `Theme` — cycles through the same themes available to `/theme`. Also writes to `~/.deepagent-tui/theme`.
+  - `Theme` — cycles through the same themes available to `/theme`. Persisted to `~/.deepagent-tui/config.toml` like the other rows.
 - **Harness** — static: `Model`, `Tools`, `Subagents`, `Skills`. `Tools` and `Subagents` come from `agent_info_middleware` and render `—` when it's not attached. See [server-middleware.md](server-middleware.md#agent-info-tools--subagents).
 - **Usage** — static meters: `Context` (a `current / max  ████░░  N%` bar where `current` is the most recent single-call input-token count), `Tokens` (cumulative in/out), `Cost`. Context window and per-token prices come from `llm_info_middleware`; when missing, the rows render as `unknown (llm_info_middleware not attached …)`. A footnote under the table flags that cost covers the main agent only when subagents are registered. See [server-middleware.md](server-middleware.md#llm-info-context-window--pricing).
 - **Status** — static: `Server`, `Graph`, `Assistant`, `Thread`, `Status`.

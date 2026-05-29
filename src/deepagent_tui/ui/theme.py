@@ -7,6 +7,7 @@ from rich.color import Color, ColorParseError
 from rich.theme import Theme as RichTheme
 
 from deepagent_tui.config import settings
+from deepagent_tui.storage.config_store import load_config, save_config
 
 
 @dataclass(frozen=True)
@@ -31,7 +32,9 @@ THEMES: dict[str, Theme] = {
 }
 
 _CONFIG_DIR = Path.home() / ".deepagent-tui"
-_THEME_FILE = _CONFIG_DIR / "theme"
+# Pre-config.toml the theme name lived in its own bare file. We still read it
+# once to migrate the value into config.toml, then delete it.
+_LEGACY_THEME_FILE = _CONFIG_DIR / "theme"
 
 
 def _valid_color(name: str) -> bool:
@@ -42,12 +45,29 @@ def _valid_color(name: str) -> bool:
         return False
 
 
-def _load_persisted_name() -> str | None:
+def _read_legacy_theme_file() -> str | None:
     try:
-        name = _THEME_FILE.read_text().strip().lower()
+        name = _LEGACY_THEME_FILE.read_text().strip().lower()
     except (FileNotFoundError, OSError):
         return None
     return name if name in THEMES else None
+
+
+def _load_persisted_name() -> str | None:
+    name = load_config().theme.strip().lower()
+    if name in THEMES:
+        return name
+    # Fold a pre-config.toml ~/.deepagent-tui/theme file into config.toml, then
+    # remove it so the migration runs exactly once.
+    legacy = _read_legacy_theme_file()
+    if legacy:
+        persist_theme(legacy)
+        try:
+            _LEGACY_THEME_FILE.unlink()
+        except OSError:
+            pass
+        return legacy
+    return None
 
 
 def _initial_theme() -> Theme:
@@ -58,13 +78,6 @@ def _initial_theme() -> Theme:
     if env_name and env_name in THEMES:
         return THEMES[env_name]
     return THEMES["default"]
-
-
-_CURRENT: Theme = _initial_theme()
-
-# Back-compat: many callers read _theme.ACCENT_COLOR directly. Keep it in sync
-# with the current theme so existing module-attribute access still works.
-ACCENT_COLOR: str = _CURRENT.accent
 
 
 def current_theme() -> Theme:
@@ -86,11 +99,18 @@ def set_theme(name: str) -> bool:
 
 
 def persist_theme(name: str) -> None:
-    try:
-        _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        _THEME_FILE.write_text(name.strip().lower())
-    except OSError:
-        pass
+    cfg = load_config()
+    cfg.theme = name.strip().lower()
+    save_config(cfg)
+
+
+# Resolved once at import. Defined after the helpers above so the legacy-file
+# migration in _load_persisted_name can call persist_theme during startup.
+_CURRENT: Theme = _initial_theme()
+
+# Back-compat: many callers read _theme.ACCENT_COLOR directly. Keep it in sync
+# with the current theme so existing module-attribute access still works.
+ACCENT_COLOR: str = _CURRENT.accent
 
 
 def markdown_theme() -> RichTheme:

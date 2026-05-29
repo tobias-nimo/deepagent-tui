@@ -1,10 +1,14 @@
 """User-tunable config persisted to ~/.deepagent-tui/config.toml.
 
-Mirrors the single-file pattern used by `ui/theme.py` for the theme name. Five
-scalars today (HITL toggle, tool-widget verbosity, markdown toggle, language,
-thinking animation); a hand-rolled TOML writer keeps us off `tomli_w` since the
-file is trivial. Unknown keys and parse errors fall back to defaults so a stale
-file from a future version is never fatal.
+The single home for all persisted preferences: HITL toggle, tool-widget
+verbosity, markdown toggle, language, thinking animation, and theme name. A
+hand-rolled TOML writer keeps us off `tomli_w` since the file is trivial.
+Unknown keys and parse errors fall back to defaults so a stale file from a
+future version is never fatal.
+
+`theme` is the empty string when no theme has been explicitly chosen — that
+sentinel lets `ui/theme.py` fall back to the `DEEPAGENT_THEME` env var before
+the built-in default, preserving the documented precedence order.
 """
 
 from __future__ import annotations
@@ -44,6 +48,7 @@ class UserConfig:
     markdown_enabled: bool = True
     language: str = "english"
     thinking_animation: str = "braille"
+    theme: str = ""
 
 
 def load_config() -> UserConfig:
@@ -75,6 +80,11 @@ def load_config() -> UserConfig:
     anim = data.get("thinking_animation")
     if isinstance(anim, str) and anim in _VALID_THINKING_ANIMATIONS:
         cfg.thinking_animation = anim
+    # Theme is validated against THEMES downstream in ui/theme.py, so accept any
+    # non-empty string here and let the loader there reject unknown names.
+    theme = data.get("theme")
+    if isinstance(theme, str) and theme:
+        cfg.theme = theme.strip().lower()
     return cfg
 
 

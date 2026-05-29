@@ -35,11 +35,11 @@ Switching applies immediately to the welcome banner, message rendering, autocomp
 
 ## Persistence
 
-The chosen theme is written to `~/.deepagent-tui/theme` and reloaded on startup. The persisted file **overrides** the `DEEPAGENT_THEME` env var — once you've used `/theme`, your choice is sticky.
+The chosen theme is written to `~/.deepagent-tui/config.toml` (the `theme` key) and reloaded on startup. The persisted value **overrides** the `DEEPAGENT_THEME` env var — once you've used `/theme`, your choice is sticky.
 
 The order of precedence on startup:
 
-1. `~/.deepagent-tui/theme` (if present and valid)
+1. `theme` in `~/.deepagent-tui/config.toml` (if present and valid)
 2. `DEEPAGENT_THEME` env var (if set and valid)
 3. `default`
 
