@@ -771,8 +771,29 @@ class DeepAgentTUI(App):
                 self._write_text(f"  Skill discovery skipped: {e}", style="dim red")
         self._flush_capture(cap)
 
+        # Resuming an existing thread (`--thread` or THREAD_ID) — replay its
+        # history below the banner so the transcript matches what the agent
+        # already has in context. Fresh threads have nothing to show.
+        if settings.thread_id:
+            await self._replay_existing_thread(settings.thread_id)
+
         welcome.set_connecting(None)
         self.query_one("#prompt", ChatTextArea).focus()
+
+    async def _replay_existing_thread(self, thread_id: str) -> None:
+        """On startup, render a resumed thread's history beneath the welcome
+        banner (unlike /resume, which clears the log). Best-effort — a fetch
+        failure or empty thread leaves the banner untouched."""
+        try:
+            state = await self.client.get_thread_state(thread_id)
+            messages = state.get("values", {}).get("messages", []) or []
+        except Exception:
+            return
+        if not messages:
+            return
+        await self._replay_thread(
+            messages, header=f"Resumed thread: {thread_id}", clear=False
+        )
 
     def _apply_scoped_config(self) -> None:
         """Re-load config scoped to the connected agent and apply it to the
@@ -2038,16 +2059,22 @@ class DeepAgentTUI(App):
             pass
 
     async def _replay_thread(
-        self, messages: list[dict], *, header: str | None = None
+        self, messages: list[dict], *, header: str | None = None, clear: bool = True
     ) -> None:
-        """Render past messages as static history. When `header` is given, the
-        last mounted widget (the `❯ /command` submission for this turn) is
-        preserved and a `⎿ {header}` line is mounted above the replayed
-        conversation; otherwise the log is fully cleared before replay."""
+        """Render past messages as static history. With `clear=True` (the
+        /resume path): when `header` is given the last mounted widget (the
+        `❯ /command` submission for this turn) is preserved and a `⎿ {header}`
+        line is mounted above the replayed conversation, otherwise the log is
+        fully cleared first. With `clear=False` (the startup-resume path) the
+        existing content (welcome banner, connection/skills info) is kept and
+        the `⎿ {header}` line plus history are appended below it."""
         from deepagent_tui.handlers.stream import extract_text_content
         from deepagent_tui.ui.renderer import render_info
 
-        if header is not None:
+        if not clear:
+            if header is not None:
+                render_info(header)
+        elif header is not None:
             children = list(self._messages.children)
             for child in children[:-1]:
                 child.remove()
