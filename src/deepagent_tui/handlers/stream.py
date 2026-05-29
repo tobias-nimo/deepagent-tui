@@ -58,14 +58,28 @@ def process_messages_event(data: list | dict, state: StreamState) -> str | None:
             continue
         msg_type = chunk.get("type")
 
-        # AIMessageChunk — streaming text token
-        if msg_type == "AIMessageChunk":
+        # Streaming text from the parent agent. Depending on the server,
+        # `messages/partial` chunks arrive either as token deltas (type
+        # "AIMessageChunk") or as the cumulative message-so-far (type "ai").
+        # Handle both: detect whether this text extends what we've already
+        # buffered and emit only the newly-added tail so callers can append
+        # it without duplicating the head.
+        if msg_type in ("AIMessageChunk", "ai"):
             content = chunk.get("content", "")
             text = extract_text_content(content)
             if text:
-                state.text_buffer += text
                 state.current_role = "ai"
-                new_text += text
+                if text.startswith(state.text_buffer):
+                    # Cumulative partial (or first chunk): the new tail is
+                    # whatever was appended since the previous partial.
+                    delta = text[len(state.text_buffer):]
+                    state.text_buffer = text
+                else:
+                    # Token delta: append it.
+                    delta = text
+                    state.text_buffer += text
+                if delta:
+                    new_text += delta
 
             # Streaming tool call chunks (partial args)
             for tc in chunk.get("tool_call_chunks", []):
@@ -130,5 +144,11 @@ def process_updates_event(data: dict, state: StreamState) -> list[dict]:
             elif msg_type == "tool":
                 state.tool_results.append(msg)
                 messages.append(msg)
+
+    # An `updates` event marks a node (and thus a streamed message) boundary.
+    # Clear the streaming-tail tracker so the next message's cumulative
+    # partials are measured from empty rather than from the prior message —
+    # callers reset their own display buffer at the same point.
+    state.text_buffer = ""
 
     return messages

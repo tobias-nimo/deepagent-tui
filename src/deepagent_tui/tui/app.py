@@ -2088,15 +2088,22 @@ class DeepAgentTUI(App):
     def _messages(self) -> Container:
         return self.query_one("#messages", Container)
 
-    def _scroll_to_input(self) -> None:
+    def _scroll_to_input(self, *, immediate: bool = True) -> None:
         """Scroll the message area so the most recent content sits flush
         against the chat bar. Defer to the next refresh so newly-mounted or
-        just-updated widgets have laid out before we measure."""
+        just-updated widgets have laid out before we measure.
+
+        `immediate=False` skips the pre-layout scroll. During streaming the
+        active slot grows on every chunk; an immediate `scroll_end` measures
+        the *old* height and renders a frame pinned to the stale bottom before
+        the deferred scroll corrects it — which reads as a bounce. Deferring
+        only lets the view track the new bottom in a single smooth step."""
         try:
             scroll = self.query_one("#main", VerticalScroll)
         except Exception:
             return
-        scroll.scroll_end(animate=False)
+        if immediate:
+            scroll.scroll_end(animate=False)
         self.call_after_refresh(scroll.scroll_end, animate=False)
 
     def _write_text(self, text: str, style: str = "") -> None:
@@ -2222,12 +2229,18 @@ class DeepAgentTUI(App):
         self._active_slot.update(_thinking_anim.render(self._thinking_frame))
 
     def _apply_streaming_text(self, text: str) -> None:
-        """Replace the active slot's content with rendered markdown."""
+        """Repaint the active slot with the text streamed so far.
+
+        Streamed text is painted as plain text, never markdown: partial
+        markdown (an unclosed ``` fence or ** span) makes Rich re-render large
+        regions on every chunk as the syntax opens and closes, which flickers
+        badly on long outputs. `_finalize_slot` renders the completed message
+        as markdown once the full text has arrived."""
         self._stop_thinking_timer()
         if self._active_slot is None:
             return
-        self._active_slot.update(self._render_assistant_text(text))
-        self._scroll_to_input()
+        self._active_slot.update(Text(text))
+        self._scroll_to_input(immediate=False)
 
     def _render_assistant_text(self, text: str) -> RenderableType:
         """Markdown for assistant text, or raw `Text` when /settings has the
@@ -2242,8 +2255,10 @@ class DeepAgentTUI(App):
         self._stop_thinking_timer()
         if self._active_slot is not None:
             if self._stream_buffer.strip():
-                # The slot showed streamed text and now becomes a permanent
-                # assistant message — track it for retroactive re-render.
+                # Streaming painted plain text for smoothness; render the
+                # completed message as markdown once, then track it as a
+                # permanent assistant message for retroactive re-render.
+                self._active_slot.update(self._render_assistant_text(self._stream_buffer))
                 self._assistant_widget_log.append((self._active_slot, self._stream_buffer))
             else:
                 self._active_slot.remove()
