@@ -2548,32 +2548,15 @@ def _preflight_error() -> str | None:
     return None
 
 
-def _parse_args(argv: list[str] | None = None) -> None:
-    """Parse CLI flags and apply them onto the `settings` singleton.
+def launch_tui() -> None:
+    """Preflight the server, then run the Textual app.
 
-    Flags override the matching env vars (`LANGGRAPH_URL`, `GRAPH_ID`,
-    `THREAD_ID`). The flag definitions and override logic are shared with the
-    `deepagent` CLI via `config.add_connection_flags` /
-    `apply_connection_overrides`, so both entry points stay in lockstep.
-    Applied before the preflight and `connect()`, which read from `settings`.
+    Assumes connection settings are already resolved (env/`.env` plus any
+    `apply_connection_overrides`). The `deepagent` CLI calls this for its
+    `tui` subcommand and the bare invocation; `run_tui` wraps it with argv
+    parsing for `python -m deepagent_tui`.
     """
-    import argparse
-
-    from deepagent_tui.config import add_connection_flags, apply_connection_overrides
-
-    parser = argparse.ArgumentParser(
-        prog="deepagent-tui",
-        description="Textual TUI client for a LangGraph Deep Agent server.",
-    )
-    add_connection_flags(parser)
-    apply_connection_overrides(parser.parse_args(argv))
-
-
-def run_tui() -> None:
-    """Synchronous entry point for the Textual TUI."""
     import sys
-
-    _parse_args()
 
     err = _preflight_error()
     if err is not None:
@@ -2585,3 +2568,24 @@ def run_tui() -> None:
         raise SystemExit(1)
 
     DeepAgentTUI().run()
+
+
+def run_tui(argv: list[str] | None = None) -> None:
+    """Standalone entry point: parse connection flags, then launch.
+
+    Used by `python -m deepagent_tui`. Flags (`--url`/`--graph`/`--thread`)
+    override the matching env vars and are defined via the shared
+    `config.add_connection_flags`, so they match the `deepagent` CLI exactly.
+    """
+    import argparse
+
+    from deepagent_tui.config import add_connection_flags, apply_connection_overrides
+
+    parser = argparse.ArgumentParser(
+        prog="python -m deepagent_tui",
+        description="Textual TUI client for a LangGraph Deep Agent server.",
+    )
+    add_connection_flags(parser)
+    apply_connection_overrides(parser.parse_args(argv))
+
+    launch_tui()

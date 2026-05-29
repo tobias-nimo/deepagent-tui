@@ -1,9 +1,10 @@
 # CLI (headless mode)
 
-`deepagent-tui` ships a second entry point, `deepagent`, for non-interactive use:
-one-shot queries, scripting, and piping. It talks to the same LangGraph Deep Agent
-server as the TUI and shares the same configuration — it's just headless. The TUI
-(`deepagent-tui`) is unchanged; `deepagent` is a separate command.
+`deepagent` is the single command for the project: run it bare (or as `deepagent
+tui`) to launch the interactive TUI, or use the headless subcommands below for
+non-interactive use — one-shot queries, scripting, and piping. The headless paths
+talk to the same LangGraph Deep Agent server as the TUI and share the same
+configuration; they just skip the UI.
 
 ```bash
 deepagent query "summarize the repo"        # one-shot in a new thread

@@ -21,7 +21,7 @@ The server is up but `assistants.search()` returned nothing. This usually means 
 There's no interactive picker for this case. The TUI uses the first assistant and prints all of them so you can pin one:
 
 ```bash
-GRAPH_ID=my_agent uv run deepagent-tui
+GRAPH_ID=my_agent uv run deepagent
 ```
 
 ## "Graph '<id>' not found"
@@ -107,5 +107,5 @@ There is no hardcoded pricing table — cost only accrues when the server's `llm
 Set `DEEPAGENT_DEBUG=1` before launching to surface stream events, tracebacks, and worker errors inline in the transcript:
 
 ```bash
-DEEPAGENT_DEBUG=1 uv run deepagent-tui
+DEEPAGENT_DEBUG=1 uv run deepagent
 ```

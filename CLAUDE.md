@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-uv sync                              # install (incl. dev extras pinned via uv.lock)
-uv run deepagent-tui                 # launch the TUI (entry: deepagent_tui.tui:run_tui)
-uv run deepagent query "..."         # headless one-shot CLI (entry: deepagent_tui.cli:main; see docs/cli.md)
+uv sync --extra dev                  # install (incl. dev extras pinned via uv.lock)
+uv run deepagent                     # launch the TUI (bare command; entry: deepagent_tui.cli:main)
+uv run deepagent query "..."         # headless one-shot CLI (same entry; see docs/cli.md)
 uv run pytest                        # smoke test suite (Textual pilot, no server needed)
 uv run pytest tests/test_tui_smoke.py::test_app_boots_and_mounts_core_widgets   # single test
 uv run pytest -k slash               # filter by keyword

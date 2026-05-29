@@ -15,7 +15,7 @@ The theme is chosen with `/theme` in the TUI and persisted to `config.toml`; see
 
 ## Command-line flags
 
-`deepagent-tui` accepts flags that override the matching env vars for a single launch (mirroring the `deepagent` CLI's `--url`/`--graph`/`--thread`):
+The TUI accepts flags that override the matching env vars for a single launch. The same `--url`/`--graph`/`--thread` flags work across the headless subcommands (`deepagent query`/`resume`), so the vocabulary is identical everywhere:
 
 | Flag | Overrides | Description |
 |------|-----------|-------------|
@@ -24,8 +24,10 @@ The theme is chosen with `/theme` in the TUI and persisted to `config.toml`; see
 | `--thread THREAD_ID` | `THREAD_ID` | Attach to a specific thread on startup |
 
 ```bash
-uv run deepagent-tui --url http://localhost:2025 --graph my_agent
+uv run deepagent tui --url http://localhost:2025 --graph my_agent
 ```
+
+Bare `uv run deepagent` launches the TUI using only env/`.env`; pass flags via the explicit `deepagent tui` form.
 
 ## `.env` files
 
