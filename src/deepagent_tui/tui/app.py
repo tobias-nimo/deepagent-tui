@@ -731,6 +731,7 @@ class DeepAgentTUI(App):
         self.session.show_help = self._tui_show_help
         self.session.show_settings = self._tui_show_settings
         self.session.set_input = self._tui_set_input
+        self.session.exit_app = self.exit
         self.session.rerender_tool_widgets = self._rerender_tool_widgets
         self.session.rerender_assistant_messages = self._rerender_assistant_messages
         # Route render_info / render_error / render_renderable straight into
@@ -2582,7 +2583,16 @@ def launch_tui() -> None:
         )
         raise SystemExit(1)
 
-    DeepAgentTUI().run()
+    app = DeepAgentTUI()
+    app.run()
+
+    # After the alt-screen is torn down, leave a hint in the scrollback so the
+    # user can pick this conversation back up. Only when a thread was actually
+    # established (a failed connect exits before one exists).
+    thread_id = app.session.thread_id
+    if thread_id:
+        print("\nResume this session with:")
+        print(f"  deepagent tui --thread {thread_id}")
 
 
 def run_tui(argv: list[str] | None = None) -> None:

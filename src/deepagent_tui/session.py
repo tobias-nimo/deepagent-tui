@@ -36,6 +36,7 @@ class Session:
     show_help: Any = None  # async () -> None — set by TUI; pushes the help screen
     show_settings: Any = None  # async () -> None — set by TUI; pushes the settings screen
     set_input: Any = None  # (text: str) -> None — set by TUI; fills the chat input bar and focuses it
+    exit_app: Any = None  # () -> None — set by TUI; cleanly stops the app so run() returns (used by /exit)
     rerender_tool_widgets: Any = None  # () -> None — set by TUI; re-renders existing tool widgets after /settings flips the widget mode
     rerender_assistant_messages: Any = None  # () -> None — set by TUI; re-renders existing assistant messages after /settings flips the Markdown toggle
     discovered_tools: dict[str, str] = field(default_factory=dict)  # name -> description
