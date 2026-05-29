@@ -2496,6 +2496,41 @@ def _capture_console() -> _Capture:
     return _Capture()
 
 
+def _preflight_error() -> str | None:
+    """Probe the server before entering the full-screen TUI.
+
+    Returns an error string if the LangGraph server is unreachable, else None.
+    This keeps the most common failure (server not running) out of the Textual
+    alternate-screen path — otherwise the UI paints, dumps an error, and is torn
+    down a few seconds later, which reads as a messy abrupt crash.
+    """
+    import asyncio
+
+    async def _probe() -> None:
+        client = AgentClient(url=settings.langgraph_url, api_key=settings.langsmith_api_key)
+        await asyncio.wait_for(client.discover_assistants(), timeout=10.0)
+
+    try:
+        asyncio.run(_probe())
+    except asyncio.TimeoutError:
+        return f"timed out after 10s connecting to {settings.langgraph_url}"
+    except Exception as e:  # noqa: BLE001
+        return str(e)
+    return None
+
+
 def run_tui() -> None:
     """Synchronous entry point for the Textual TUI."""
+    import sys
+
+    err = _preflight_error()
+    if err is not None:
+        print(f"Cannot reach LangGraph server at {settings.langgraph_url}: {err}", file=sys.stderr)
+        print(
+            "Start one with `uv run langgraph dev --no-browser`, "
+            "or point LANGGRAPH_URL at a running server.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
     DeepAgentTUI().run()
