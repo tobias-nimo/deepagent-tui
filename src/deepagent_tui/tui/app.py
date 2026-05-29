@@ -7,16 +7,14 @@ import traceback
 from pathlib import Path
 from typing import Any
 
-from rich.console import Console, Group
-from rich.console import RenderableType
+from rich.console import Console, Group, RenderableType
 from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.message import Message
-from textual.widgets import Rule, Static, TextArea
-from textual.widgets import OptionList
+from textual.widgets import OptionList, Rule, Static, TextArea
 from textual.widgets.option_list import Option
 
 import deepagent_tui.ui.theme as _theme
@@ -1358,6 +1356,8 @@ class DeepAgentTUI(App):
     async def _run_command(self, text: str) -> None:
         from deepagent_tui.commands import (
             dispatch as dispatch_command,
+        )
+        from deepagent_tui.commands import (
             get_command,
             is_dynamic,
         )

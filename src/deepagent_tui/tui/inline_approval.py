@@ -14,7 +14,6 @@ from textual.widgets import Static
 import deepagent_tui.ui.theme as _theme
 from deepagent_tui.handlers.interrupt import InterruptInfo
 
-
 _OPTION_LABELS: dict[str, str] = {
     "approve": "Yes",
     "accept": "Yes",
