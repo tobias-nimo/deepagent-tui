@@ -2,9 +2,25 @@ from __future__ import annotations
 
 import re
 
-from rich.markdown import Markdown
+from rich.markdown import HorizontalRule, Markdown
+from rich.rule import Rule
+from rich.text import Text
 
 from deepagent_tui.ui.theme import markdown_theme
+
+
+class _SolidRule(HorizontalRule):
+    """Render `---` as a solid dim line in the accent color instead of Rich's
+    default row of dashes."""
+
+    def __rich_console__(self, console, options):
+        style = console.get_style("markdown.hr", default="dim")
+        yield Rule(style=style, characters="─")
+        yield Text()
+
+
+class _ThemedMd(Markdown):
+    elements = {**Markdown.elements, "hr": _SolidRule}
 
 
 class _ThemedMarkdown:
@@ -30,7 +46,7 @@ def render_markdown(text: str) -> _ThemedMarkdown:
     Pre-processes the text to handle edge cases before Rich rendering.
     """
     processed = _preprocess(text)
-    return _ThemedMarkdown(Markdown(processed, code_theme="github-dark"))
+    return _ThemedMarkdown(_ThemedMd(processed, code_theme="github-dark"))
 
 
 def _preprocess(text: str) -> str:
