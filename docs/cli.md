@@ -51,6 +51,9 @@ Prints the recent threads recorded in `~/.deepagent-tui/threads.db` (the same in
 that powers the TUI's `/resume`) as a plain table: short id, last-updated time,
 graph, message count, and the last message. Use it to find an id for `resume`.
 
+When `GRAPH_ID` is pinned (env var or `--graph`), the list is scoped to that agent;
+with no graph pinned it shows threads from every agent.
+
 ## Flags
 
 Shared by `query` and `resume`:

@@ -38,18 +38,26 @@ If `THREAD_ID` is set, the TUI attaches to that thread (the server is not asked 
 
 | Path | Purpose |
 |------|---------|
-| `~/.deepagent-tui/threads.db` | SQLite thread index (powers `/resume`) |
+| `~/.deepagent-tui/threads.db` | SQLite thread index (powers `/resume`); the picker is scoped per agent (`graph_id`) + workspace |
 | `~/.deepagent-tui/config.toml` | Persisted preferences: theme, auto-approve (HITL), tool-widget mode, markdown on/off, thinking animation, language |
 | `.env` | Per-directory configuration overrides |
 
 A legacy `~/.deepagent-tui/theme` file from older versions is migrated into `config.toml` automatically on first launch, then removed.
 
+### Per-agent scoping
+
+Preferences and history don't bleed across agents:
+
+- **Settings** — `config.toml` has a top-level **default** layer plus per-agent `[graph."<graph_id>"]` override tables. `/settings` (and `/theme`) write to the connected agent's section; an agent you've never customized inherits the defaults. A pre-scoping flat file is read unchanged as the default layer, so no migration is required.
+- **History** — `/resume` lists only threads for the connected agent, narrowed further to the current workspace once the server reports one (before the first message it falls back to agent-only). Resolving a thread by explicit id/prefix is **not** scoped.
+
 ## Theme precedence
 
 When the TUI starts, the theme is chosen in this order:
 
-1. `theme` in `~/.deepagent-tui/config.toml` if present and valid
-2. `DEEPAGENT_THEME` env var if set and valid
-3. `default`
+1. `theme` in the connected agent's `[graph."<graph_id>"]` section of `config.toml`, if present and valid (applied once `connect()` resolves the agent)
+2. `theme` in the top-level default layer of `config.toml`, if present and valid
+3. `DEEPAGENT_THEME` env var if set and valid
+4. `default`
 
-So once you've set a theme with `/theme <name>`, that choice sticks across restarts regardless of what `DEEPAGENT_THEME` is set to.
+So once you've set a theme with `/theme <name>` while connected to an agent, that choice sticks for that agent across restarts regardless of what `DEEPAGENT_THEME` is set to.
