@@ -13,9 +13,8 @@ defaults when the TUI is connected to that graph. A pre-scoping flat file (no
 so the format is backward compatible with no migration step.
 
 `theme` is the empty string when no theme has been explicitly chosen — that
-sentinel lets `ui/theme.py` fall back to the `DEEPAGENT_THEME` env var before
-the built-in default, preserving the documented precedence order. An empty
-theme in a graph table never clobbers a non-empty default.
+sentinel lets `ui/theme.py` fall back to the built-in default. An empty theme
+in a graph table never clobbers a non-empty default.
 """
 
 from __future__ import annotations

@@ -4,7 +4,7 @@ A few TUI features need the connected Deep Agent server to register specific mid
 
 | TUI feature | Server requirement |
 |-------------|--------------------|
-| Workspace path in the hint bar / banner (without `DEEPAGENT_WORKSPACE`) | A middleware that writes the path into thread state |
+| Workspace path in the hint bar / banner | A middleware that writes the path into thread state |
 | `/compact` slash command | `SummarizationToolMiddleware` (exposes the `compact_conversation` tool) |
 | `/settings` → Harness tab: `Tools`, `Subagents` rows | `agent_info_middleware` (writes `tools` / `subagents` into thread state) |
 | `/settings` → Usage tab: context-capacity meter, server-priced cost | `llm_info_middleware` (writes `context_window` / `input_price_per_mtok` / `output_price_per_mtok` into thread state) |
@@ -13,7 +13,7 @@ Each section below is a self-contained recipe; pick the ones you need.
 
 ## Workspace path
 
-The TUI's hint bar shows the agent's workspace path. When `DEEPAGENT_WORKSPACE` is unset, the TUI reads the path from LangGraph thread state — the server is the authority.
+The TUI's hint bar shows the agent's workspace path. The TUI reads the path from LangGraph thread state — the server is the authority.
 
 ### What the TUI reads
 
@@ -367,4 +367,4 @@ In the TUI, open `/settings` and switch to the Usage tab — you should see a fi
 
 - [Threads](threads.md) — how `/rewind` filters out messages cleaned up by `/compact`
 - [Commands](commands.md) — the user-facing reference for `/compact`
-- [Configuration](configuration.md) — `DEEPAGENT_WORKSPACE` env var
+- [Configuration](configuration.md) — environment variables and file locations

@@ -10,12 +10,8 @@
 | `GRAPH_ID` | — (auto-discover) | Pin to a specific graph/assistant when the server exposes more than one |
 | `THREAD_ID` | — | Resume a specific thread on startup instead of creating a new one |
 | `LANGSMITH_API_KEY` | — | API key for authenticated connections (LangGraph Cloud) |
-| `DEEPAGENT_THEME` | `default` | Initial UI theme |
-| `DEEPAGENT_WORKSPACE` | — | Workspace path shown in the hint bar (pinned while idle, alongside a rotating tip) and in the `/export` banner. Overrides whatever the server reports. |
 
-`DEEPAGENT_THEME` must be one of: `default`, `aesthetic`, `vintage`, `monochrome`, `terminal`, `sunset`, `ocean`, `neon`, `langchain`. See [themes.md](themes.md) for the catalog.
-
-`DEEPAGENT_WORKSPACE` is a display-only override. If unset, the TUI reads the workspace from thread state — the server is the authority. Set this when the server doesn't expose a workspace key, or when you want a different label (e.g. a symlink target, a short alias).
+The theme is chosen with `/theme` in the TUI and persisted to `config.toml`; see [themes.md](themes.md) for the catalog. The workspace path shown in the hint bar and the `/export` banner is read from server thread state — the server is the authority.
 
 ## `.env` files
 
@@ -57,7 +53,6 @@ When the TUI starts, the theme is chosen in this order:
 
 1. `theme` in the connected agent's `[graph."<graph_id>"]` section of `config.toml`, if present and valid (applied once `connect()` resolves the agent)
 2. `theme` in the top-level default layer of `config.toml`, if present and valid
-3. `DEEPAGENT_THEME` env var if set and valid
-4. `default`
+3. `default`
 
-So once you've set a theme with `/theme <name>` while connected to an agent, that choice sticks for that agent across restarts regardless of what `DEEPAGENT_THEME` is set to.
+So once you've set a theme with `/theme <name>` while connected to an agent, that choice sticks for that agent across restarts.

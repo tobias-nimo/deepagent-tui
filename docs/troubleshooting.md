@@ -90,7 +90,7 @@ sudo apt install xsel       # or xclip
 
 ## Theme reverts on restart
 
-`~/.deepagent-tui/config.toml` couldn't be written (permissions, full disk), so the `theme` key never persisted. The error is silent — check the file exists and is writable. Until then, set `DEEPAGENT_THEME=<name>` to pin the theme via env.
+`~/.deepagent-tui/config.toml` couldn't be written (permissions, full disk), so the `theme` key never persisted. The error is silent — check the file exists and is writable.
 
 ## Approval prompt is stuck
 

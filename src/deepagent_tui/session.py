@@ -40,7 +40,7 @@ class Session:
     rerender_assistant_messages: Any = None  # () -> None — set by TUI; re-renders existing assistant messages after /settings flips the Markdown toggle
     discovered_tools: dict[str, str] = field(default_factory=dict)  # name -> description
     discovered_skills_from_state: bool = False  # True once skills_metadata fetched from thread
-    workspace_root: str | None = None  # DEEPAGENT_WORKSPACE env var, else server thread state
+    workspace_root: str | None = None  # reported by the server in thread state
     hitl_enabled: bool = True  # when False, /settings auto-approves HITL interrupts
     tool_widget_mode: str = "default"  # "compacted" | "default" | "expanded"; see ui/tool_widgets.py
     markdown_enabled: bool = True  # when False, assistant chunks render as raw text (debug aid)

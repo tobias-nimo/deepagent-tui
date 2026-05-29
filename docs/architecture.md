@@ -67,7 +67,7 @@ A normal user message goes through this path:
 
 5. **`_handle_interrupts`** polls `get_thread_state` after the stream ends. If `state.tasks[*].interrupts` is non-empty, it mounts an `InlineApproval`, waits for the user's choice, and calls `client.resume(...)` with a `Command(resume=...)` payload. Loops until no pending interrupts remain.
 
-6. **`_flush_usage`** accumulates token counts and triggers `_discover_from_thread_state` to register newly-loaded skills as slash commands and (if not pre-set via `DEEPAGENT_WORKSPACE`) read the workspace path from thread state.
+6. **`_flush_usage`** accumulates token counts and triggers `_discover_from_thread_state` to register newly-loaded skills as slash commands and read the workspace path from thread state.
 
 7. **`upsert_thread`** updates the local SQLite row with the new `last_message` and `message_count`.
 

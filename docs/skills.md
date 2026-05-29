@@ -20,7 +20,7 @@ Most Deep Agents don't expose skills here — they load skills lazily via `Skill
 
 After every assistant turn, `_discover_from_thread_state` reads `skills_metadata` from the thread checkpoint (set by `SkillsMiddleware`). New entries are registered as dynamic commands.
 
-The workspace shown in the hint bar (and `/export` header) is **not** derived from skill paths — skills can live anywhere (shared dirs, system installs) and aren't tied to the agent's workspace. The TUI reads the workspace from thread state under the first matching key: `working_directory`, `workspace`, `project_root`, `root_dir`, `cwd`, `workspace_dir`. Set `DEEPAGENT_WORKSPACE` to override.
+The workspace shown in the hint bar (and `/export` header) is **not** derived from skill paths — skills can live anywhere (shared dirs, system installs) and aren't tied to the agent's workspace. The TUI reads the workspace from thread state under the first matching key: `working_directory`, `workspace`, `project_root`, `root_dir`, `cwd`, `workspace_dir`.
 
 This is the path most users hit: send a message, the agent loads its skills, the TUI picks them up on the next turn, and they appear in autocomplete.
 
