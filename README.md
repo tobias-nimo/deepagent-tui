@@ -19,7 +19,7 @@ uv sync
 cd /path/to/your/agent && uv run langgraph dev --no-browser
 
 # Launch the TUI
-uv run deepagent-tui
+uv run deepagent
 ```
 
 The TUI connects to `LANGGRAPH_URL` (default `http://localhost:2024`), discovers an assistant, opens a fresh thread, and drops you at a prompt. From there, type a message — or use an input prefix: `/` for commands, `@` to reference a workspace file, `!` to run a local shell command (see [Input bar](docs/input.md)).

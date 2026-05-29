@@ -10,12 +10,24 @@
 | `GRAPH_ID` | — (auto-discover) | Pin to a specific graph/assistant when the server exposes more than one |
 | `THREAD_ID` | — | Resume a specific thread on startup instead of creating a new one |
 | `LANGSMITH_API_KEY` | — | API key for authenticated connections (LangGraph Cloud) |
-| `DEEPAGENT_THEME` | `default` | Initial UI theme |
-| `DEEPAGENT_WORKSPACE` | — | Workspace path shown in the hint bar (pinned while idle, alongside a rotating tip) and in the `/export` banner. Overrides whatever the server reports. |
 
-`DEEPAGENT_THEME` must be one of: `default`, `aesthetic`, `vintage`, `monochrome`, `terminal`, `sunset`, `ocean`, `neon`, `langchain`. See [themes.md](themes.md) for the catalog.
+The theme is chosen with `/theme` in the TUI and persisted to `config.toml`; see [themes.md](themes.md) for the catalog. The workspace path shown in the hint bar and the `/export` banner is read from server thread state — the server is the authority.
 
-`DEEPAGENT_WORKSPACE` is a display-only override. If unset, the TUI reads the workspace from thread state — the server is the authority. Set this when the server doesn't expose a workspace key, or when you want a different label (e.g. a symlink target, a short alias).
+## Command-line flags
+
+The TUI accepts flags that override the matching env vars for a single launch. The same `--url`/`--graph`/`--thread` flags work across the headless subcommands (`deepagent query`/`resume`), so the vocabulary is identical everywhere:
+
+| Flag | Overrides | Description |
+|------|-----------|-------------|
+| `--url URL` | `LANGGRAPH_URL` | LangGraph server URL to connect to |
+| `--graph GRAPH_ID` | `GRAPH_ID` | Pin to a specific graph/assistant |
+| `--thread THREAD_ID` | `THREAD_ID` | Attach to a specific thread on startup |
+
+```bash
+uv run deepagent tui --url http://localhost:2025 --graph my_agent
+```
+
+Bare `uv run deepagent` launches the TUI using only env/`.env`; pass flags via the explicit `deepagent tui` form.
 
 ## `.env` files
 
@@ -38,18 +50,25 @@ If `THREAD_ID` is set, the TUI attaches to that thread (the server is not asked 
 
 | Path | Purpose |
 |------|---------|
-| `~/.deepagent-tui/threads.db` | SQLite thread index (powers `/resume`) |
+| `~/.deepagent-tui/threads.db` | SQLite thread index (powers `/resume`); the picker is scoped per agent (`graph_id`) + workspace |
 | `~/.deepagent-tui/config.toml` | Persisted preferences: theme, auto-approve (HITL), tool-widget mode, markdown on/off, thinking animation, language |
 | `.env` | Per-directory configuration overrides |
 
 A legacy `~/.deepagent-tui/theme` file from older versions is migrated into `config.toml` automatically on first launch, then removed.
 
+### Per-agent scoping
+
+Preferences and history don't bleed across agents:
+
+- **Settings** — `config.toml` has a top-level **default** layer plus per-agent `[graph."<graph_id>"]` override tables. `/settings` (and `/theme`) write to the connected agent's section; an agent you've never customized inherits the defaults. A pre-scoping flat file is read unchanged as the default layer, so no migration is required.
+- **History** — `/resume` lists only threads for the connected agent, narrowed further to the current workspace once the server reports one (before the first message it falls back to agent-only). Resolving a thread by explicit id/prefix is **not** scoped.
+
 ## Theme precedence
 
 When the TUI starts, the theme is chosen in this order:
 
-1. `theme` in `~/.deepagent-tui/config.toml` if present and valid
-2. `DEEPAGENT_THEME` env var if set and valid
+1. `theme` in the connected agent's `[graph."<graph_id>"]` section of `config.toml`, if present and valid (applied once `connect()` resolves the agent)
+2. `theme` in the top-level default layer of `config.toml`, if present and valid
 3. `default`
 
-So once you've set a theme with `/theme <name>`, that choice sticks across restarts regardless of what `DEEPAGENT_THEME` is set to.
+So once you've set a theme with `/theme <name>` while connected to an agent, that choice sticks for that agent across restarts.

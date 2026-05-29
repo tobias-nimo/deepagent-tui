@@ -141,6 +141,7 @@ async def _upsert(client: AgentClient, session: Session, last_message: str) -> N
         await upsert_thread(
             session.thread_id,
             session.graph_id or "",
+            workspace=session.workspace_root,
             last_message=last_message[:100],
             message_count=count,
         )
@@ -280,6 +281,8 @@ async def run_resume(thread_id_arg: str, message: str | None, mode: str) -> int:
 
 
 async def run_list() -> int:
-    rows = await list_threads(limit=50)
+    # Scope to the pinned agent when GRAPH_ID is set (or --graph passed); with
+    # no graph pinned, fall back to listing every thread.
+    rows = await list_threads(limit=50, graph_id=settings.graph_id)
     print_thread_list(rows)
     return 0

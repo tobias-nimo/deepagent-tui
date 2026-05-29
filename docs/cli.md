@@ -1,9 +1,10 @@
 # CLI (headless mode)
 
-`deepagent-tui` ships a second entry point, `deepagent`, for non-interactive use:
-one-shot queries, scripting, and piping. It talks to the same LangGraph Deep Agent
-server as the TUI and shares the same configuration — it's just headless. The TUI
-(`deepagent-tui`) is unchanged; `deepagent` is a separate command.
+`deepagent` is the single command for the project: run it bare (or as `deepagent
+tui`) to launch the interactive TUI, or use the headless subcommands below for
+non-interactive use — one-shot queries, scripting, and piping. The headless paths
+talk to the same LangGraph Deep Agent server as the TUI and share the same
+configuration; they just skip the UI.
 
 ```bash
 deepagent query "summarize the repo"        # one-shot in a new thread
@@ -50,6 +51,9 @@ deepagent resume 1f3a            # continue a thread that's paused on a tool app
 Prints the recent threads recorded in `~/.deepagent-tui/threads.db` (the same index
 that powers the TUI's `/resume`) as a plain table: short id, last-updated time,
 graph, message count, and the last message. Use it to find an id for `resume`.
+
+When `GRAPH_ID` is pinned (env var or `--graph`), the list is scoped to that agent;
+with no graph pinned it shows threads from every agent.
 
 ## Flags
 

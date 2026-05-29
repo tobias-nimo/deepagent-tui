@@ -758,6 +758,11 @@ class DeepAgentTUI(App):
             self.set_timer(3.0, self.exit)
             return
 
+        # The graph_id is only known now, after connect(). Re-load config with
+        # it so per-agent overrides replace the default layer applied at startup
+        # (in __init__ and on the ui.theme import).
+        self._apply_scoped_config()
+
         with _capture_console() as cap:
             try:
                 await discover_and_register_skills(self.client, self.session)
@@ -767,6 +772,29 @@ class DeepAgentTUI(App):
 
         welcome.set_connecting(None)
         self.query_one("#prompt", ChatTextArea).focus()
+
+    def _apply_scoped_config(self) -> None:
+        """Re-load config scoped to the connected agent and apply it to the
+        session, widget mode, thinking animation, and theme. Startup applied
+        only the default layer (graph_id wasn't known yet); this lets a
+        `[graph."<id>"]` override win once we know which agent we connected to."""
+        from deepagent_tui.storage.config_store import load_config
+        from deepagent_tui.ui.theme import set_theme
+        from deepagent_tui.ui.tool_widgets import set_widget_mode
+
+        cfg = load_config(self.session.graph_id)
+        self.session.hitl_enabled = cfg.hitl_enabled
+        self.session.tool_widget_mode = cfg.tool_widget_mode
+        self.session.markdown_enabled = cfg.markdown_enabled
+        self.session.language = cfg.language
+        self.session.thinking_animation = cfg.thinking_animation
+        set_widget_mode(cfg.tool_widget_mode)
+        _thinking_anim.set_animation(cfg.thinking_animation)
+        if cfg.theme and set_theme(cfg.theme):
+            try:
+                self.query_one("#welcome", WelcomeBanner).refresh_content()
+            except Exception:
+                pass
 
     # ── Input / autocomplete ────────────────────────────────────────────────
 
@@ -1452,6 +1480,7 @@ class DeepAgentTUI(App):
                 await upsert_thread(
                     self.session.thread_id,
                     self.session.graph_id or "",
+                    workspace=self.session.workspace_root,
                     last_message=display_text[:100],
                     message_count=len(self.session.messages) + 1,
                 )
@@ -2059,15 +2088,22 @@ class DeepAgentTUI(App):
     def _messages(self) -> Container:
         return self.query_one("#messages", Container)
 
-    def _scroll_to_input(self) -> None:
+    def _scroll_to_input(self, *, immediate: bool = True) -> None:
         """Scroll the message area so the most recent content sits flush
         against the chat bar. Defer to the next refresh so newly-mounted or
-        just-updated widgets have laid out before we measure."""
+        just-updated widgets have laid out before we measure.
+
+        `immediate=False` skips the pre-layout scroll. During streaming the
+        active slot grows on every chunk; an immediate `scroll_end` measures
+        the *old* height and renders a frame pinned to the stale bottom before
+        the deferred scroll corrects it — which reads as a bounce. Deferring
+        only lets the view track the new bottom in a single smooth step."""
         try:
             scroll = self.query_one("#main", VerticalScroll)
         except Exception:
             return
-        scroll.scroll_end(animate=False)
+        if immediate:
+            scroll.scroll_end(animate=False)
         self.call_after_refresh(scroll.scroll_end, animate=False)
 
     def _write_text(self, text: str, style: str = "") -> None:
@@ -2193,12 +2229,18 @@ class DeepAgentTUI(App):
         self._active_slot.update(_thinking_anim.render(self._thinking_frame))
 
     def _apply_streaming_text(self, text: str) -> None:
-        """Replace the active slot's content with rendered markdown."""
+        """Repaint the active slot with the text streamed so far.
+
+        Streamed text is painted as plain text, never markdown: partial
+        markdown (an unclosed ``` fence or ** span) makes Rich re-render large
+        regions on every chunk as the syntax opens and closes, which flickers
+        badly on long outputs. `_finalize_slot` renders the completed message
+        as markdown once the full text has arrived."""
         self._stop_thinking_timer()
         if self._active_slot is None:
             return
-        self._active_slot.update(self._render_assistant_text(text))
-        self._scroll_to_input()
+        self._active_slot.update(Text(text))
+        self._scroll_to_input(immediate=False)
 
     def _render_assistant_text(self, text: str) -> RenderableType:
         """Markdown for assistant text, or raw `Text` when /settings has the
@@ -2213,8 +2255,10 @@ class DeepAgentTUI(App):
         self._stop_thinking_timer()
         if self._active_slot is not None:
             if self._stream_buffer.strip():
-                # The slot showed streamed text and now becomes a permanent
-                # assistant message — track it for retroactive re-render.
+                # Streaming painted plain text for smoothness; render the
+                # completed message as markdown once, then track it as a
+                # permanent assistant message for retroactive re-render.
+                self._active_slot.update(self._render_assistant_text(self._stream_buffer))
                 self._assistant_widget_log.append((self._active_slot, self._stream_buffer))
             else:
                 self._active_slot.remove()
@@ -2519,18 +2563,44 @@ def _preflight_error() -> str | None:
     return None
 
 
-def run_tui() -> None:
-    """Synchronous entry point for the Textual TUI."""
+def launch_tui() -> None:
+    """Preflight the server, then run the Textual app.
+
+    Assumes connection settings are already resolved (env/`.env` plus any
+    `apply_connection_overrides`). The `deepagent` CLI calls this for its
+    `tui` subcommand and the bare invocation; `run_tui` wraps it with argv
+    parsing for `python -m deepagent_tui`.
+    """
     import sys
 
     err = _preflight_error()
     if err is not None:
-        print(f"Cannot reach LangGraph server at {settings.langgraph_url}: {err}", file=sys.stderr)
+        print(f"  ⎿ Can't reach LangGraph server at {settings.langgraph_url}: {err}", file=sys.stderr)
         print(
-            "Start one with `uv run langgraph dev --no-browser`, "
-            "or point LANGGRAPH_URL at a running server.",
+            "  ⎿ Start one with `langgraph dev --no-browser`, or set LANGGRAPH_URL.",
             file=sys.stderr,
         )
         raise SystemExit(1)
 
     DeepAgentTUI().run()
+
+
+def run_tui(argv: list[str] | None = None) -> None:
+    """Standalone entry point: parse connection flags, then launch.
+
+    Used by `python -m deepagent_tui`. Flags (`--url`/`--graph`/`--thread`)
+    override the matching env vars and are defined via the shared
+    `config.add_connection_flags`, so they match the `deepagent` CLI exactly.
+    """
+    import argparse
+
+    from deepagent_tui.config import add_connection_flags, apply_connection_overrides
+
+    parser = argparse.ArgumentParser(
+        prog="python -m deepagent_tui",
+        description="Textual TUI client for a LangGraph Deep Agent server.",
+    )
+    add_connection_flags(parser)
+    apply_connection_overrides(parser.parse_args(argv))
+
+    launch_tui()

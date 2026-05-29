@@ -53,9 +53,6 @@ async def connect(client: AgentClient, session: Session) -> bool:
     session.assistant_id = assistant["assistant_id"]
     session.graph_id = assistant["graph_id"]
 
-    if settings.deepagent_workspace:
-        session.workspace_root = settings.deepagent_workspace
-
     if settings.thread_id:
         session.thread_id = settings.thread_id
     else:

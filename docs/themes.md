@@ -35,13 +35,15 @@ Switching applies immediately to the welcome banner, message rendering, autocomp
 
 ## Persistence
 
-The chosen theme is written to `~/.deepagent-tui/config.toml` (the `theme` key) and reloaded on startup. The persisted value **overrides** the `DEEPAGENT_THEME` env var — once you've used `/theme`, your choice is sticky.
+The chosen theme is written to `~/.deepagent-tui/config.toml` and reloaded on startup. Like all settings, it's **scoped to the connected agent**: `/theme` writes the `theme` key into that agent's `[graph."<graph_id>"]` section, so different agents can carry different themes. Once you've used `/theme` for an agent, your choice is sticky for it.
 
 The order of precedence on startup:
 
-1. `theme` in `~/.deepagent-tui/config.toml` (if present and valid)
-2. `DEEPAGENT_THEME` env var (if set and valid)
+1. `theme` in the connected agent's `[graph."<graph_id>"]` section (applied once `connect()` resolves the agent)
+2. `theme` in the top-level default layer of `~/.deepagent-tui/config.toml`
 3. `default`
+
+See [configuration.md](configuration.md#per-agent-scoping) for the scoping model.
 
 ## Markdown coloring
 
@@ -55,6 +57,6 @@ Themes are defined in the `THEMES` dict in `src/deepagent_tui/ui/theme.py`. To a
    ```python
    "lavender": Theme("lavender", "#b794f4", "#9f7aea", (183, 148, 244), (159, 122, 234)),
    ```
-2. Update the `DEEPAGENT_THEME` listing in [configuration.md](configuration.md) and the catalog table above.
+2. Update the catalog table above.
 
 The new theme appears in `/theme` automatically — autocomplete and persistence work without further changes.

@@ -25,8 +25,8 @@ Quits the TUI. Equivalent to `Ctrl+C`.
 
 ### `/resume [thread_id]`
 
-- **No argument** — opens a picker listing every non-empty thread in the local DB (capped at `MAX_THREADS = 20`, filterable by typing). Selecting one switches the session to that thread, fetches its state from the server, and replays the conversation inline.
-- **Full or partial id** — `/resume abc12` resolves to a thread whose id starts with `abc12`. Ambiguous prefixes are rejected with an error. If the id isn't in the local DB, the server is queried directly as a fallback.
+- **No argument** — opens a picker listing the non-empty threads in the local DB (capped at `MAX_THREADS = 20`, filterable by typing), **scoped to the connected agent** (`graph_id`) and, once the server reports one, the current workspace. Selecting one switches the session to that thread, fetches its state from the server, and replays the conversation inline.
+- **Full or partial id** — `/resume abc12` resolves to a thread whose id starts with `abc12`. This lookup is **not** scoped, so you can attach to threads from any agent/workspace. Ambiguous prefixes are rejected with an error. If the id isn't in the local DB, the server is queried directly as a fallback.
 
 Switching threads resets token/cost counters and re-renders past messages in place, with a `⎿ Resumed thread: <id>` line above the replayed conversation.
 
@@ -64,14 +64,14 @@ A call with no matching result yet (pending or interrupted) is emitted without t
 ### `/theme [name]`
 
 - **No argument** — opens a picker (`PickerScreen`) listing every theme; each row shows an interpolated gradient bar plus accent/command color swatches, with the active theme tagged `current`. Selecting one applies + persists it (`⎿ Theme set to: <name>`); dismissing prints `⎿ Cancelled.`
-- **`/theme <name>`** — switches the theme directly and writes the choice to `~/.deepagent-tui/config.toml` so it persists across restarts.
+- **`/theme <name>`** — switches the theme directly and writes the choice to `~/.deepagent-tui/config.toml` so it persists across restarts. Like all settings, it's scoped to the connected agent's `[graph."<graph_id>"]` section — see [configuration.md](configuration.md#per-agent-scoping).
 
 The welcome banner repaints after any command, so theme changes take effect immediately.
 
 ### `/settings`
 Opens a four-tab modal docked to the bottom 60% of the screen (the chat behind stays visible through a hazy backdrop). `Shift+Tab` / `Tab` (also `[` / `]`) cycles tabs; `Esc` / `Ctrl+C` / `q` closes.
 
-- **Config** — six interactive rows; ↑↓ moves the highlight, ←→ (or `Space`) cycles the value. Changes apply live and are persisted to `~/.deepagent-tui/config.toml`.
+- **Config** — six interactive rows; ↑↓ moves the highlight, ←→ (or `Space`) cycles the value. Changes apply live and are persisted to the connected agent's section of `~/.deepagent-tui/config.toml`, so they don't affect other agents (see [configuration.md](configuration.md#per-agent-scoping)).
   - `Tool widgets output` — tool-widget verbosity: `compacted` (header only), `default` (capped preview), `expanded` (no per-tool cap; full diffs, full bash output, full Ls listings, full subagent progress). Changing this re-renders existing tool widgets in the transcript, not just future ones.
   - `Auto-approve tools` — `off` shows the inline approval widget on interrupts; `on` auto-accepts them.
   - `Markdown rendering` — `on` renders assistant text through Rich Markdown; `off` falls back to raw `Text` (useful for debugging streamed payloads). Changing this re-renders existing assistant messages in the transcript, not just future ones.

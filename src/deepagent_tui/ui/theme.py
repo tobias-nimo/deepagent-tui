@@ -6,7 +6,6 @@ from pathlib import Path
 from rich.color import Color, ColorParseError
 from rich.theme import Theme as RichTheme
 
-from deepagent_tui.config import settings
 from deepagent_tui.storage.config_store import load_config, save_config
 
 
@@ -74,9 +73,6 @@ def _initial_theme() -> Theme:
     persisted = _load_persisted_name()
     if persisted:
         return THEMES[persisted]
-    env_name = (getattr(settings, "deepagent_theme", None) or "").strip().lower()
-    if env_name and env_name in THEMES:
-        return THEMES[env_name]
     return THEMES["default"]
 
 

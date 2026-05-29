@@ -21,7 +21,7 @@ The server is up but `assistants.search()` returned nothing. This usually means 
 There's no interactive picker for this case. The TUI uses the first assistant and prints all of them so you can pin one:
 
 ```bash
-GRAPH_ID=my_agent uv run deepagent-tui
+GRAPH_ID=my_agent uv run deepagent
 ```
 
 ## "Graph '<id>' not found"
@@ -50,11 +50,13 @@ When dragging from Finder/Files, your terminal needs to paste the path; if it do
 
 `/resume` reads from `~/.deepagent-tui/threads.db` — the local index. A thread is missing when:
 
+- It belongs to a **different agent** — the picker is scoped to the connected `graph_id`. Connect to that agent (set `GRAPH_ID`) to see its threads.
+- It belongs to a **different workspace** — once the server reports a workspace, the picker narrows to it. A thread from another workspace won't show until you're in that workspace.
 - It was created on a different machine
 - The local index was deleted
 - The thread was created via the LangGraph server directly (not via this TUI)
 
-`/resume <thread_id>` falls back to a server lookup, so you can still attach to threads that aren't in the local index — they'll be added on the next assistant turn.
+`/resume <thread_id>` falls back to a server lookup and is **not** scoped, so you can still attach to threads from any agent/workspace (or that aren't in the local index) by id — they'll be added on the next assistant turn.
 
 ## `/rewind` fails with "no assigned graph ID"
 
@@ -88,7 +90,7 @@ sudo apt install xsel       # or xclip
 
 ## Theme reverts on restart
 
-`~/.deepagent-tui/config.toml` couldn't be written (permissions, full disk), so the `theme` key never persisted. The error is silent — check the file exists and is writable. Until then, set `DEEPAGENT_THEME=<name>` to pin the theme via env.
+`~/.deepagent-tui/config.toml` couldn't be written (permissions, full disk), so the `theme` key never persisted. The error is silent — check the file exists and is writable.
 
 ## Approval prompt is stuck
 
@@ -105,5 +107,5 @@ There is no hardcoded pricing table — cost only accrues when the server's `llm
 Set `DEEPAGENT_DEBUG=1` before launching to surface stream events, tracebacks, and worker errors inline in the transcript:
 
 ```bash
-DEEPAGENT_DEBUG=1 uv run deepagent-tui
+DEEPAGENT_DEBUG=1 uv run deepagent
 ```
