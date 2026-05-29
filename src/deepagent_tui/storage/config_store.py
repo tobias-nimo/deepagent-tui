@@ -38,6 +38,19 @@ _VALID_THINKING_ANIMATIONS: tuple[str, ...] = (
     "typewriter",
     "sparkle",
 )
+# Curated Pygments styles for the markdown code-block toggle. "github-dark" is
+# the default (the value previously hard-coded in ui/markdown.py); the rest are
+# picked to read well on a dark terminal.
+_VALID_CODE_THEMES: tuple[str, ...] = (
+    "github-dark",
+    "monokai",
+    "dracula",
+    "nord-darker",
+    "one-dark",
+    "gruvbox-dark",
+    "native",
+    "lightbulb",
+)
 
 # Legacy → modern rename. Pre-v2 the toggle was binary ("condensed"/"expanded"),
 # where "expanded" meant the current "default" (capped) view. We migrate the
@@ -54,6 +67,7 @@ class UserConfig:
     markdown_enabled: bool = True
     language: str = "english"
     thinking_animation: str = "braille"
+    code_theme: str = "github-dark"
     theme: str = ""
 
 
@@ -79,6 +93,9 @@ def _apply(data: dict, cfg: UserConfig) -> None:
     anim = data.get("thinking_animation")
     if isinstance(anim, str) and anim in _VALID_THINKING_ANIMATIONS:
         cfg.thinking_animation = anim
+    code_theme = data.get("code_theme")
+    if isinstance(code_theme, str) and code_theme in _VALID_CODE_THEMES:
+        cfg.code_theme = code_theme
     # Theme is validated against THEMES downstream in ui/theme.py, so accept any
     # non-empty string here and let the loader there reject unknown names. Empty
     # strings are skipped so a graph override never wipes the default theme.

@@ -653,6 +653,7 @@ class DeepAgentTUI(App):
         # ~/.deepagent-tui/config.toml. Theme lives in the same file but is
         # loaded by ui.theme on import.
         from deepagent_tui.storage.config_store import load_config
+        from deepagent_tui.ui.markdown import set_code_theme as _set_code_theme
         from deepagent_tui.ui.tool_widgets import set_widget_mode as _set_widget_mode
 
         _cfg = load_config()
@@ -661,8 +662,10 @@ class DeepAgentTUI(App):
         self.session.markdown_enabled = _cfg.markdown_enabled
         self.session.language = _cfg.language
         self.session.thinking_animation = _cfg.thinking_animation
+        self.session.code_theme = _cfg.code_theme
         _set_widget_mode(_cfg.tool_widget_mode)
         _thinking_anim.set_animation(_cfg.thinking_animation)
+        _set_code_theme(_cfg.code_theme)
         self._stream_buffer: str = ""
         # Which autocomplete dropdown is currently showing, so Tab / selection
         # know what to do: "command" (/), "file" (@), or "none".
@@ -731,6 +734,7 @@ class DeepAgentTUI(App):
         self.session.show_help = self._tui_show_help
         self.session.show_settings = self._tui_show_settings
         self.session.set_input = self._tui_set_input
+        self.session.exit_app = self.exit
         self.session.rerender_tool_widgets = self._rerender_tool_widgets
         self.session.rerender_assistant_messages = self._rerender_assistant_messages
         # Route render_info / render_error / render_renderable straight into
@@ -770,8 +774,29 @@ class DeepAgentTUI(App):
                 self._write_text(f"  Skill discovery skipped: {e}", style="dim red")
         self._flush_capture(cap)
 
+        # Resuming an existing thread (`--thread` or THREAD_ID) — replay its
+        # history below the banner so the transcript matches what the agent
+        # already has in context. Fresh threads have nothing to show.
+        if settings.thread_id:
+            await self._replay_existing_thread(settings.thread_id)
+
         welcome.set_connecting(None)
         self.query_one("#prompt", ChatTextArea).focus()
+
+    async def _replay_existing_thread(self, thread_id: str) -> None:
+        """On startup, render a resumed thread's history beneath the welcome
+        banner (unlike /resume, which clears the log). Best-effort — a fetch
+        failure or empty thread leaves the banner untouched."""
+        try:
+            state = await self.client.get_thread_state(thread_id)
+            messages = state.get("values", {}).get("messages", []) or []
+        except Exception:
+            return
+        if not messages:
+            return
+        await self._replay_thread(
+            messages, header=f"Resumed thread: {thread_id}", clear=False
+        )
 
     def _apply_scoped_config(self) -> None:
         """Re-load config scoped to the connected agent and apply it to the
@@ -779,6 +804,7 @@ class DeepAgentTUI(App):
         only the default layer (graph_id wasn't known yet); this lets a
         `[graph."<id>"]` override win once we know which agent we connected to."""
         from deepagent_tui.storage.config_store import load_config
+        from deepagent_tui.ui.markdown import set_code_theme
         from deepagent_tui.ui.theme import set_theme
         from deepagent_tui.ui.tool_widgets import set_widget_mode
 
@@ -788,8 +814,10 @@ class DeepAgentTUI(App):
         self.session.markdown_enabled = cfg.markdown_enabled
         self.session.language = cfg.language
         self.session.thinking_animation = cfg.thinking_animation
+        self.session.code_theme = cfg.code_theme
         set_widget_mode(cfg.tool_widget_mode)
         _thinking_anim.set_animation(cfg.thinking_animation)
+        set_code_theme(cfg.code_theme)
         if cfg.theme and set_theme(cfg.theme):
             try:
                 self.query_one("#welcome", WelcomeBanner).refresh_content()
@@ -1417,8 +1445,9 @@ class DeepAgentTUI(App):
                 self._tool_widget_log.clear()
                 self._clear_plan_card()
 
-            # Repaint the welcome banner after any command: /theme changes the
-            # gradient, and other commands may update session state shown there.
+            # Repaint the welcome banner after any command: /settings can change
+            # the theme gradient, and other commands may update session state
+            # shown there.
             try:
                 self.query_one("#welcome", WelcomeBanner).refresh_content()
             except Exception:
@@ -2037,16 +2066,22 @@ class DeepAgentTUI(App):
             pass
 
     async def _replay_thread(
-        self, messages: list[dict], *, header: str | None = None
+        self, messages: list[dict], *, header: str | None = None, clear: bool = True
     ) -> None:
-        """Render past messages as static history. When `header` is given, the
-        last mounted widget (the `❯ /command` submission for this turn) is
-        preserved and a `⎿ {header}` line is mounted above the replayed
-        conversation; otherwise the log is fully cleared before replay."""
+        """Render past messages as static history. With `clear=True` (the
+        /resume path): when `header` is given the last mounted widget (the
+        `❯ /command` submission for this turn) is preserved and a `⎿ {header}`
+        line is mounted above the replayed conversation, otherwise the log is
+        fully cleared first. With `clear=False` (the startup-resume path) the
+        existing content (welcome banner, connection/skills info) is kept and
+        the `⎿ {header}` line plus history are appended below it."""
         from deepagent_tui.handlers.stream import extract_text_content
         from deepagent_tui.ui.renderer import render_info
 
-        if header is not None:
+        if not clear:
+            if header is not None:
+                render_info(header)
+        elif header is not None:
             children = list(self._messages.children)
             for child in children[:-1]:
                 child.remove()
@@ -2582,7 +2617,16 @@ def launch_tui() -> None:
         )
         raise SystemExit(1)
 
-    DeepAgentTUI().run()
+    app = DeepAgentTUI()
+    app.run()
+
+    # After the alt-screen is torn down, leave a hint in the scrollback so the
+    # user can pick this conversation back up. Only when a thread was actually
+    # established (a failed connect exits before one exists).
+    thread_id = app.session.thread_id
+    if thread_id:
+        print("\nResume this session with:")
+        print(f"  deepagent tui --thread {thread_id}")
 
 
 def run_tui(argv: list[str] | None = None) -> None:

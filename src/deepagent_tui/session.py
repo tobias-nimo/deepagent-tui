@@ -36,6 +36,7 @@ class Session:
     show_help: Any = None  # async () -> None — set by TUI; pushes the help screen
     show_settings: Any = None  # async () -> None — set by TUI; pushes the settings screen
     set_input: Any = None  # (text: str) -> None — set by TUI; fills the chat input bar and focuses it
+    exit_app: Any = None  # () -> None — set by TUI; cleanly stops the app so run() returns (used by /exit)
     rerender_tool_widgets: Any = None  # () -> None — set by TUI; re-renders existing tool widgets after /settings flips the widget mode
     rerender_assistant_messages: Any = None  # () -> None — set by TUI; re-renders existing assistant messages after /settings flips the Markdown toggle
     discovered_tools: dict[str, str] = field(default_factory=dict)  # name -> description
@@ -46,6 +47,7 @@ class Session:
     markdown_enabled: bool = True  # when False, assistant chunks render as raw text (debug aid)
     language: str = "english"  # static for now; placeholder for future i18n
     thinking_animation: str = "braille"  # which "Thinking…" animation to play; see ui/thinking.py
+    code_theme: str = "github-dark"  # Pygments style for markdown code blocks; see ui/markdown.py
 
     def add_usage(self, input_tokens: int, output_tokens: int) -> None:
         """Accumulate token usage and (when prices are known) cost.

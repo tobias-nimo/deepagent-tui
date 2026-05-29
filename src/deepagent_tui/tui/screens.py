@@ -19,8 +19,8 @@ import deepagent_tui.ui.theme as _theme
 class PickerItem:
     """One row in a picker — a bold title line, a dim subtitle line, and the
     opaque value that's returned when the user selects this row. Subtitle
-    may be a Rich `Text` so callers can inject inline styling (e.g. the
-    /theme picker's gradient swatches)."""
+    may be a Rich `Text` so callers can inject inline styling (e.g. a
+    picker row's color swatches)."""
 
     title: str
     subtitle: Text | str
@@ -356,7 +356,6 @@ class HelpScreen(ModalScreen[None]):
         ("Skills", "Run /skills to see what the connected agent can do."),
         ("Resume a thread", "/resume opens a picker of recent threads."),
         ("Rewind to earlier", "/rewind branches a new thread from any past user turn."),
-        ("Switch theme", "/theme lists themes; /theme <name> applies one."),
     ]
 
     def __init__(self, builtins: dict[str, str]) -> None:
@@ -708,9 +707,10 @@ class SettingsScreen(ModalScreen[None]):
         from deepagent_tui.ui.theme import current_theme
 
         return [
-            ("Tool widgets output", self._session.tool_widget_mode),
+            ("Tool widget mode", self._session.tool_widget_mode),
             ("Auto-approve tools", "off" if self._session.hitl_enabled else "on"),
             ("Markdown rendering", "on" if self._session.markdown_enabled else "off"),
+            ("Code snippets style", self._session.code_theme),
             ("Thinking animation", self._session.thinking_animation),
             ("Language", self._session.language.lower()),
             ("Theme", current_theme().name),
@@ -770,6 +770,21 @@ class SettingsScreen(ModalScreen[None]):
             if self._session.rerender_assistant_messages is not None:
                 self._session.rerender_assistant_messages()
         elif idx == 3:
+            from deepagent_tui.storage.config_store import _VALID_CODE_THEMES
+            from deepagent_tui.ui.markdown import set_code_theme
+
+            try:
+                pos = _VALID_CODE_THEMES.index(self._session.code_theme)
+            except ValueError:
+                pos = 0
+            new_theme = _VALID_CODE_THEMES[(pos + delta) % len(_VALID_CODE_THEMES)]
+            self._session.code_theme = new_theme
+            set_code_theme(new_theme)
+            # Re-render existing assistant messages so the new style applies
+            # retroactively to code blocks already in the transcript.
+            if self._session.rerender_assistant_messages is not None:
+                self._session.rerender_assistant_messages()
+        elif idx == 4:
             from deepagent_tui.ui import thinking as thinking_anim
 
             keys = thinking_anim.ANIMATION_KEYS
@@ -780,10 +795,10 @@ class SettingsScreen(ModalScreen[None]):
             new_key = keys[(pos + delta) % len(keys)]
             self._session.thinking_animation = new_key
             thinking_anim.set_animation(new_key)
-        elif idx == 4:
+        elif idx == 5:
             # Static placeholder — only "english" is offered today.
             pass
-        elif idx == 5:
+        elif idx == 6:
             names = available_themes()
             try:
                 pos = names.index(current_theme().name)
@@ -805,7 +820,8 @@ class SettingsScreen(ModalScreen[None]):
         cfg.markdown_enabled = self._session.markdown_enabled
         cfg.language = self._session.language
         cfg.thinking_animation = self._session.thinking_animation
-        if idx == 5:
+        cfg.code_theme = self._session.code_theme
+        if idx == 6:
             cfg.theme = current_theme().name
         save_config(cfg, graph_id)
         self._refresh_tabs()

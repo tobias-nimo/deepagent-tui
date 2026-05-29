@@ -173,6 +173,21 @@ async def test_config_toggle_persists(monkeypatch: pytest.MonkeyPatch, tmp_path)
             == app.session.tool_widget_mode
         )
 
+        # Cycling the Code snippets style row (row 3) writes the new Pygments
+        # style, propagates to the markdown module, and round-trips to disk.
+        from deepagent_tui.ui import markdown as md
+
+        screen._selected_row = 3
+        before_theme = app.session.code_theme
+        screen._cycle_current(+1)
+        assert app.session.code_theme != before_theme
+        assert app.session.code_theme in config_store._VALID_CODE_THEMES
+        assert md._code_theme == app.session.code_theme
+        assert (
+            config_store.load_config(app.session.graph_id).code_theme
+            == app.session.code_theme
+        )
+
 
 async def test_at_prefix_reveals_file_list(tmp_path) -> None:
     (tmp_path / "alpha.txt").write_text("x")

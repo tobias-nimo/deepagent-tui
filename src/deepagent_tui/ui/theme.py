@@ -125,6 +125,7 @@ def markdown_theme() -> RichTheme:
             "markdown.list": "",
             "markdown.item.number": "",
             "markdown.block_quote": "dim",
+            "markdown.hr": f"dim {accent}",
             "markdown.h1": f"bold underline {accent}",
             "markdown.h2": f"bold underline {accent}",
             "markdown.h3": f"bold {accent}",

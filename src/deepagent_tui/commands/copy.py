@@ -23,6 +23,20 @@ def _extract_text(content) -> str:
     return str(content)
 
 
+def _yaml_scalar(value, indent: int = 0) -> str:
+    """Render a value as a YAML scalar.
+
+    Multiline values use a literal block (``|``) indented past their key by
+    ``indent`` spaces; single-line values are single-quoted.
+    """
+    text = "" if value is None else str(value)
+    if "\n" in text:
+        pad = " " * (indent + 2)
+        body = "\n".join(pad + line for line in text.splitlines())
+        return "|\n" + body
+    return "'" + text.replace("'", "''") + "'"
+
+
 def _format_tool_block(tc: dict, result_msg: dict | None) -> str:
     name = tc.get("name", "unknown")
     args = tc.get("args", {})
@@ -33,12 +47,15 @@ def _format_tool_block(tc: dict, result_msg: dict | None) -> str:
             args = {"input": args} if args else {}
     if not isinstance(args, dict):
         args = {}
-    parts = [f"{k}={v}" for k, v in args.items()]
 
-    lines = ["```", f"{name}({', '.join(parts)})"]
+    lines = ["```yaml", f"tool: {_yaml_scalar(name)}"]
+    if args:
+        lines.append("parameters:")
+        for key, value in args.items():
+            lines.append(f"    - {key}: {_yaml_scalar(value, indent=4)}")
     if result_msg is not None:
         result = _extract_text(result_msg.get("content", "")).strip()
-        lines.append(f"⎿ {result}")
+        lines.append(f"output: {_yaml_scalar(result)}")
     lines.append("```")
     return "\n".join(lines)
 

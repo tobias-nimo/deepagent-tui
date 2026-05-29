@@ -121,5 +121,4 @@ from deepagent_tui.commands import (  # noqa: E402, F401
     rewind,
     settings,
     skills,
-    theme,
 )
