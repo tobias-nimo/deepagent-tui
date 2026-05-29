@@ -11,7 +11,7 @@
 | `THREAD_ID` | — | Resume a specific thread on startup instead of creating a new one |
 | `LANGSMITH_API_KEY` | — | API key for authenticated connections (LangGraph Cloud) |
 
-The theme is chosen with `/theme` in the TUI and persisted to `config.toml`; see [themes.md](themes.md) for the catalog. The workspace path shown in the hint bar and the `/export` banner is read from server thread state — the server is the authority.
+The theme is chosen from the `/settings` Config tab in the TUI and persisted to `config.toml`; see [themes.md](themes.md) for the catalog. The workspace path shown in the hint bar and the `/export` banner is read from server thread state — the server is the authority.
 
 ## Command-line flags
 
@@ -60,7 +60,7 @@ A legacy `~/.deepagent-tui/theme` file from older versions is migrated into `con
 
 Preferences and history don't bleed across agents:
 
-- **Settings** — `config.toml` has a top-level **default** layer plus per-agent `[graph."<graph_id>"]` override tables. `/settings` (and `/theme`) write to the connected agent's section; an agent you've never customized inherits the defaults. A pre-scoping flat file is read unchanged as the default layer, so no migration is required.
+- **Settings** — `config.toml` has a top-level **default** layer plus per-agent `[graph."<graph_id>"]` override tables. `/settings` writes to the connected agent's section; an agent you've never customized inherits the defaults. A pre-scoping flat file is read unchanged as the default layer, so no migration is required.
 - **History** — `/resume` lists only threads for the connected agent, narrowed further to the current workspace once the server reports one (before the first message it falls back to agent-only). Resolving a thread by explicit id/prefix is **not** scoped.
 
 ## Theme precedence
@@ -71,4 +71,4 @@ When the TUI starts, the theme is chosen in this order:
 2. `theme` in the top-level default layer of `config.toml`, if present and valid
 3. `default`
 
-So once you've set a theme with `/theme <name>` while connected to an agent, that choice sticks for that agent across restarts.
+So once you've set a theme from `/settings` while connected to an agent, that choice sticks for that agent across restarts.

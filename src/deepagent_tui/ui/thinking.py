@@ -4,7 +4,7 @@ A small registry of named animations, each a function `(frame: int) -> Text`
 called at ~10fps while the agent is thinking. The active animation is chosen
 in /settings and persisted to config.toml; `set_animation` mirrors the choice
 into module state so `render(frame)` picks it up. Color-driven animations read
-the live theme accent/gradient, so they follow /theme changes for free.
+the live theme accent/gradient, so they follow theme changes for free.
 """
 
 from __future__ import annotations

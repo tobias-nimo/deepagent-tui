@@ -22,20 +22,17 @@ Each theme defines four colors:
 | `neon` | `#ff2bd6` | `#fff200` | magenta → violet |
 | `langchain` | `#a5c8ff` | `#5b9eff` | icy blue → LangChain blue |
 
-Run `/theme` to see the actual swatches in your terminal.
+Open `/settings` → **Config** tab and cycle the **Theme** row to see the swatches in your terminal.
 
 ## Switching themes
 
-```text
-/theme               # open a picker; each row shows a gradient bar + accent/command swatches
-/theme ocean         # switch to "ocean" and persist the choice
-```
+Themes are switched from `/settings`: open the **Config** tab and cycle the **Theme** row (←/→) to apply each theme in turn.
 
 Switching applies immediately to the welcome banner, message rendering, autocomplete, picker, and inline approval.
 
 ## Persistence
 
-The chosen theme is written to `~/.deepagent-tui/config.toml` and reloaded on startup. Like all settings, it's **scoped to the connected agent**: `/theme` writes the `theme` key into that agent's `[graph."<graph_id>"]` section, so different agents can carry different themes. Once you've used `/theme` for an agent, your choice is sticky for it.
+The chosen theme is written to `~/.deepagent-tui/config.toml` and reloaded on startup. Like all settings, it's **scoped to the connected agent**: cycling the **Theme** row in `/settings` writes the `theme` key into that agent's `[graph."<graph_id>"]` section, so different agents can carry different themes. Once you've set a theme for an agent, your choice is sticky for it.
 
 The order of precedence on startup:
 
@@ -59,4 +56,4 @@ Themes are defined in the `THEMES` dict in `src/deepagent_tui/ui/theme.py`. To a
    ```
 2. Update the catalog table above.
 
-The new theme appears in `/theme` automatically — autocomplete and persistence work without further changes.
+The new theme appears in the `/settings` Theme row automatically — cycling and persistence work without further changes.

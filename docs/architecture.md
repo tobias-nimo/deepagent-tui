@@ -34,8 +34,7 @@ src/deepagent_tui/
 │   ├── compact.py     # /compact (TUI intercepts; routes through _submit_compact)
 │   ├── copy.py        # /copy + shared transcript/clipboard helpers
 │   ├── export.py      # /export
-│   ├── theme.py       # /theme
-│   ├── settings.py    # /settings (opens SettingsScreen)
+│   ├── settings.py    # /settings (opens SettingsScreen; theme lives on the Config tab)
 │   └── skills.py      # /skills and /skills refresh
 ├── handlers/
 │   ├── stream.py      # StreamState + process_messages_event / process_updates_event

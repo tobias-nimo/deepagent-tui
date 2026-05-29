@@ -9,7 +9,7 @@ Opens a four-tab modal docked to the bottom 60% of the screen (`HelpScreen` in `
 
 - **Help** — friendly welcome plus a short overview of the TUI and deep agents, followed by getting-started instructions.
 - **Keyboard** — keyboard shortcuts (Enter / Shift+Enter / Tab / Esc / ↑↓ message recall / Shift+arrows selection / Shift+Tab focus toggle / Fn+↑↓ paging).
-- **Tips** — quick workflow hints (slash commands, @ file references, ! shell commands, passing images, skills, /resume, /rewind, /theme).
+- **Tips** — quick workflow hints (slash commands, @ file references, ! shell commands, passing images, skills, /resume, /rewind).
 - **Commands** — the full list of built-in slash commands (name + description), followed by a short note explaining that skills are invoked as `/<skill-name>` and pointing to `/skills` to see what the current agent exposes.
 
 ### `/new`
@@ -61,12 +61,7 @@ A call with no matching result yet (pending or interrupted) is emitted without t
 
 ## Appearance
 
-### `/theme [name]`
-
-- **No argument** — opens a picker (`PickerScreen`) listing every theme; each row shows an interpolated gradient bar plus accent/command color swatches, with the active theme tagged `current`. Selecting one applies + persists it (`⎿ Theme set to: <name>`); dismissing prints `⎿ Cancelled.`
-- **`/theme <name>`** — switches the theme directly and writes the choice to `~/.deepagent-tui/config.toml` so it persists across restarts. Like all settings, it's scoped to the connected agent's `[graph."<graph_id>"]` section — see [configuration.md](configuration.md#per-agent-scoping).
-
-The welcome banner repaints after any command, so theme changes take effect immediately.
+The UI theme is changed from the `/settings` **Config** tab (see the `Theme` row below). The standalone `/theme` command has been removed — `/settings` is the only way to switch themes.
 
 ### `/settings`
 Opens a four-tab modal docked to the bottom 60% of the screen (the chat behind stays visible through a hazy backdrop). `Shift+Tab` / `Tab` (also `[` / `]`) cycles tabs; `Esc` / `Ctrl+C` / `q` closes.
@@ -78,7 +73,7 @@ Opens a four-tab modal docked to the bottom 60% of the screen (the chat behind s
   - `Code snippets style` — Pygments style for fenced code blocks in assistant markdown: `github-dark` (default), `monokai`, `dracula`, `nord-darker`, `one-dark`, `gruvbox-dark`, `native`, `lightbulb`. Changing this re-renders existing assistant messages, not just future ones.
   - `Thinking animation` — cycles the streaming "Thinking…" animation: `braille`, `pulse`, `shimmer`, `gradient`, `typewriter`, `sparkle` (`shimmer`/`gradient` follow the active theme).
   - `Language` — placeholder locked to `english` today.
-  - `Theme` — cycles through the same themes available to `/theme`. Persisted to `~/.deepagent-tui/config.toml` like the other rows.
+  - `Theme` — cycles through the built-in UI themes (see [themes.md](themes.md)). Persisted to `~/.deepagent-tui/config.toml` like the other rows. Changing it repaints the welcome banner, message rendering, autocomplete, picker, and inline approval immediately.
 - **Harness** — static: `Model`, `Tools`, `Subagents`, `Skills`. `Tools` and `Subagents` come from `agent_info_middleware` and render `—` when it's not attached. See [server-middleware.md](server-middleware.md#agent-info-tools--subagents).
 - **Usage** — static meters: `Context` (a `current / max  ████░░  N%` bar where `current` is the most recent single-call input-token count), `Tokens` (cumulative in/out), `Cost`. Context window and per-token prices come from `llm_info_middleware`; when missing, the rows render as `unknown (llm_info_middleware not attached …)`. A footnote under the table flags that cost covers the main agent only when subagents are registered. See [server-middleware.md](server-middleware.md#llm-info-context-window--pricing).
 - **Status** — static: `Server`, `Graph`, `Assistant`, `Thread`, `Status`.

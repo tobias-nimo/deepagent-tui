@@ -1445,8 +1445,9 @@ class DeepAgentTUI(App):
                 self._tool_widget_log.clear()
                 self._clear_plan_card()
 
-            # Repaint the welcome banner after any command: /theme changes the
-            # gradient, and other commands may update session state shown there.
+            # Repaint the welcome banner after any command: /settings can change
+            # the theme gradient, and other commands may update session state
+            # shown there.
             try:
                 self.query_one("#welcome", WelcomeBanner).refresh_content()
             except Exception:

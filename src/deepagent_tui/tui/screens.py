@@ -19,8 +19,8 @@ import deepagent_tui.ui.theme as _theme
 class PickerItem:
     """One row in a picker — a bold title line, a dim subtitle line, and the
     opaque value that's returned when the user selects this row. Subtitle
-    may be a Rich `Text` so callers can inject inline styling (e.g. the
-    /theme picker's gradient swatches)."""
+    may be a Rich `Text` so callers can inject inline styling (e.g. a
+    picker row's color swatches)."""
 
     title: str
     subtitle: Text | str
@@ -356,7 +356,6 @@ class HelpScreen(ModalScreen[None]):
         ("Skills", "Run /skills to see what the connected agent can do."),
         ("Resume a thread", "/resume opens a picker of recent threads."),
         ("Rewind to earlier", "/rewind branches a new thread from any past user turn."),
-        ("Switch theme", "/theme lists themes; /theme <name> applies one."),
     ]
 
     def __init__(self, builtins: dict[str, str]) -> None:
