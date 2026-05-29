@@ -62,8 +62,8 @@ A normal user message goes through this path:
 
 4. **`_consume_stream`** dispatches each chunk by its event type:
    - `metadata` — captures the `run_id` so ESC can roll back server-side
-   - `messages/partial` — appends streaming text tokens to the active slot (parent agent only; subagent text is suppressed)
-   - `updates` — finalizes the streaming slot, then renders tool calls and tool results as inline widgets. Subagent updates (`updates|<ns>`) become `⎿` progress lines on the parent task widget.
+   - `messages/partial` — streams the parent agent's text into the active slot as **plain text** (subagent text is suppressed). Painting plain text avoids the large-region reflow flicker that partial markdown — an unclosed ``` fence or `**` span — causes on long outputs.
+   - `updates` — finalizes the streaming slot (re-rendering its text as markdown once, now that the message is complete), then renders tool calls and tool results as inline widgets. Subagent updates (`updates|<ns>`) become `⎿` progress lines on the parent task widget.
 
 5. **`_handle_interrupts`** polls `get_thread_state` after the stream ends. If `state.tasks[*].interrupts` is non-empty, it mounts an `InlineApproval`, waits for the user's choice, and calls `client.resume(...)` with a `Command(resume=...)` payload. Loops until no pending interrupts remain.
 
@@ -88,7 +88,7 @@ A normal user message goes through this path:
 
 The TUI relies on two LangGraph SDK stream modes simultaneously:
 
-- **`messages`** — token-level chunks; emitted as `messages/partial`. Used to stream the parent agent's text into the active response slot.
+- **`messages`** — streamed message updates; emitted as `messages/partial`. Used to stream the parent agent's text into the active response slot. `process_messages_event` handles both shapes a server may send — token deltas (`AIMessageChunk`) or the cumulative message-so-far (`ai`) — emitting only the newly-added tail either way.
 - **`updates`** — node-level updates; emitted as `updates`. Used to surface tool calls and tool results as widgets, capture token usage, and detect when the parent text needs to be finalized.
 
 With `stream_subgraphs=True`, subagent activity is suffixed with `|<namespace>` (e.g. `updates|tools:abc123`). The TUI binds each namespace to the oldest pending subagent call (FIFO matches sequential dispatch) so `⎿` progress lines land on the right widget. See `_handle_subagent_update` in `tui/app.py`.
