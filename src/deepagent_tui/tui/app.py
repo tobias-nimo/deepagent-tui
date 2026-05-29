@@ -2554,10 +2554,9 @@ def run_tui() -> None:
 
     err = _preflight_error()
     if err is not None:
-        print(f"Cannot reach LangGraph server at {settings.langgraph_url}: {err}", file=sys.stderr)
+        print(f"  ⎿ Can't reach LangGraph server at {settings.langgraph_url}: {err}", file=sys.stderr)
         print(
-            "Start one with `uv run langgraph dev --no-browser`, "
-            "or point LANGGRAPH_URL at a running server.",
+            "  ⎿ Start one with `langgraph dev --no-browser`, or set LANGGRAPH_URL.",
             file=sys.stderr,
         )
         raise SystemExit(1)
