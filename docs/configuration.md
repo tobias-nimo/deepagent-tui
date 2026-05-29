@@ -13,6 +13,20 @@
 
 The theme is chosen with `/theme` in the TUI and persisted to `config.toml`; see [themes.md](themes.md) for the catalog. The workspace path shown in the hint bar and the `/export` banner is read from server thread state — the server is the authority.
 
+## Command-line flags
+
+`deepagent-tui` accepts flags that override the matching env vars for a single launch (mirroring the `deepagent` CLI's `--url`/`--graph`/`--thread`):
+
+| Flag | Overrides | Description |
+|------|-----------|-------------|
+| `--url URL` | `LANGGRAPH_URL` | LangGraph server URL to connect to |
+| `--graph GRAPH_ID` | `GRAPH_ID` | Pin to a specific graph/assistant |
+| `--thread THREAD_ID` | `THREAD_ID` | Attach to a specific thread on startup |
+
+```bash
+uv run deepagent-tui --url http://localhost:2025 --graph my_agent
+```
+
 ## `.env` files
 
 A `.env` file in the current working directory is loaded automatically. See `example.env` at the repo root for a copy-pasteable starting point. The TUI doesn't search parent directories — `.env` must sit in the directory you launch it from.

@@ -11,6 +11,8 @@ import argparse
 import asyncio
 import sys
 
+from deepagent_tui.config import add_connection_flags, apply_connection_overrides
+
 _DESCRIPTION = """\
 Headless client for a LangGraph Deep Agent server.
 
@@ -28,10 +30,8 @@ answer. Exit codes: 0 ok, 1 error, 2 aborted awaiting human input.
 """
 
 
-def _add_run_flags(p: argparse.ArgumentParser) -> None:
-    """Flags shared by `query` and `resume`."""
-    p.add_argument("--url", metavar="URL", help="override LANGGRAPH_URL")
-    p.add_argument("--graph", metavar="GRAPH_ID", help="override GRAPH_ID")
+def _add_output_flags(p: argparse.ArgumentParser) -> None:
+    """The mutually-exclusive output-mode flags shared by `query` and `resume`."""
     out = p.add_mutually_exclusive_group()
     out.add_argument(
         "--quiet",
@@ -66,12 +66,8 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         help='the prompt to send; omit or pass "-" to read from stdin',
     )
-    q.add_argument(
-        "--thread",
-        metavar="ID",
-        help="send into an existing thread instead of creating a new one",
-    )
-    _add_run_flags(q)
+    add_connection_flags(q, thread=True)
+    _add_output_flags(q)
 
     r = sub.add_parser(
         "resume",
@@ -86,7 +82,8 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="message to send (required unless the thread is mid-interrupt)",
     )
-    _add_run_flags(r)
+    add_connection_flags(r, thread=False)
+    _add_output_flags(r)
 
     sub.add_parser(
         "list",
@@ -95,15 +92,6 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     return parser
-
-
-def _apply_overrides(args: argparse.Namespace) -> None:
-    from deepagent_tui.config import settings
-
-    if getattr(args, "url", None):
-        settings.langgraph_url = args.url
-    if getattr(args, "graph", None):
-        settings.graph_id = args.graph
 
 
 def _output_mode(args: argparse.Namespace) -> str:
@@ -136,14 +124,14 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "list":
         sys.exit(asyncio.run(runner.run_list()))
 
-    _apply_overrides(args)
+    apply_connection_overrides(args)  # url/graph/thread → settings
     mode = _output_mode(args)
 
     if args.command == "query":
         prompt = _read_prompt(args.prompt)
         if not prompt:
             parser.error("query: no prompt given (argument or stdin)")
-        sys.exit(asyncio.run(runner.run_query(prompt, mode, thread_id=args.thread)))
+        sys.exit(asyncio.run(runner.run_query(prompt, mode)))
 
     if args.command == "resume":
         message = args.message

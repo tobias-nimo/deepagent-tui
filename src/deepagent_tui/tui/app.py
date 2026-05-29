@@ -2548,9 +2548,32 @@ def _preflight_error() -> str | None:
     return None
 
 
+def _parse_args(argv: list[str] | None = None) -> None:
+    """Parse CLI flags and apply them onto the `settings` singleton.
+
+    Flags override the matching env vars (`LANGGRAPH_URL`, `GRAPH_ID`,
+    `THREAD_ID`). The flag definitions and override logic are shared with the
+    `deepagent` CLI via `config.add_connection_flags` /
+    `apply_connection_overrides`, so both entry points stay in lockstep.
+    Applied before the preflight and `connect()`, which read from `settings`.
+    """
+    import argparse
+
+    from deepagent_tui.config import add_connection_flags, apply_connection_overrides
+
+    parser = argparse.ArgumentParser(
+        prog="deepagent-tui",
+        description="Textual TUI client for a LangGraph Deep Agent server.",
+    )
+    add_connection_flags(parser)
+    apply_connection_overrides(parser.parse_args(argv))
+
+
 def run_tui() -> None:
     """Synchronous entry point for the Textual TUI."""
     import sys
+
+    _parse_args()
 
     err = _preflight_error()
     if err is not None:
