@@ -1215,7 +1215,7 @@ class DeepAgentTUI(App):
             cleaned, paths = extract_image_paths(text)
             image_paths = pending + paths
             if image_paths:
-                text = cleaned or "Please analyze this image."
+                text = cleaned or "[image]"
 
         # Rewrite `@workspace/rel/path` file references: the agent receives a
         # `[name](abs path)` markdown link it can act on, while the bubble shows
