@@ -6,9 +6,16 @@ hand-rolled TOML writer keeps us off `tomli_w` since the file is trivial.
 Unknown keys and parse errors fall back to defaults so a stale file from a
 future version is never fatal.
 
+Scope: top-level scalar keys are the *defaults* applied to every agent. A
+`[graph."<graph_id>"]` table holds per-agent overrides that win over the
+defaults when the TUI is connected to that graph. A pre-scoping flat file (no
+`[graph.*]` tables) is read unchanged — it simply becomes the default layer,
+so the format is backward compatible with no migration step.
+
 `theme` is the empty string when no theme has been explicitly chosen — that
 sentinel lets `ui/theme.py` fall back to the `DEEPAGENT_THEME` env var before
-the built-in default, preserving the documented precedence order.
+the built-in default, preserving the documented precedence order. An empty
+theme in a graph table never clobbers a non-empty default.
 """
 
 from __future__ import annotations
@@ -51,17 +58,10 @@ class UserConfig:
     theme: str = ""
 
 
-def load_config() -> UserConfig:
-    try:
-        raw = _CONFIG_FILE.read_bytes()
-    except (FileNotFoundError, OSError):
-        return UserConfig()
-    try:
-        data = tomllib.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, tomllib.TOMLDecodeError):
-        return UserConfig()
-
-    cfg = UserConfig()
+def _apply(data: dict, cfg: UserConfig) -> None:
+    """Overlay recognized keys from `data` onto `cfg` in place. Used for both
+    the default layer and a per-graph override layer, so unknown/invalid values
+    are skipped (leaving whatever was already on `cfg`)."""
     hitl = data.get("hitl_enabled")
     if isinstance(hitl, bool):
         cfg.hitl_enabled = hitl
@@ -81,30 +81,80 @@ def load_config() -> UserConfig:
     if isinstance(anim, str) and anim in _VALID_THINKING_ANIMATIONS:
         cfg.thinking_animation = anim
     # Theme is validated against THEMES downstream in ui/theme.py, so accept any
-    # non-empty string here and let the loader there reject unknown names.
+    # non-empty string here and let the loader there reject unknown names. Empty
+    # strings are skipped so a graph override never wipes the default theme.
     theme = data.get("theme")
     if isinstance(theme, str) and theme:
         cfg.theme = theme.strip().lower()
+
+
+def _read_raw() -> dict:
+    """Parsed TOML document, or {} on any read/parse failure."""
+    try:
+        raw = _CONFIG_FILE.read_bytes()
+    except (FileNotFoundError, OSError):
+        return {}
+    try:
+        return tomllib.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError):
+        return {}
+
+
+def load_config(graph_id: str | None = None) -> UserConfig:
+    """Effective config for `graph_id`: the default (top-level) layer with the
+    matching `[graph."<graph_id>"]` overrides applied on top. With no graph_id
+    (e.g. at startup before connection), only the default layer is returned."""
+    data = _read_raw()
+    cfg = UserConfig()
+    _apply(data, cfg)
+    if graph_id:
+        graphs = data.get("graph")
+        if isinstance(graphs, dict):
+            override = graphs.get(graph_id)
+            if isinstance(override, dict):
+                _apply(override, cfg)
     return cfg
 
 
-def save_config(cfg: UserConfig) -> None:
+def save_config(cfg: UserConfig, graph_id: str | None = None) -> None:
+    """Persist `cfg`. With a graph_id it writes to that graph's override table
+    and leaves the defaults and other graphs untouched; without one it rewrites
+    the default layer. Existing sections we aren't targeting are preserved."""
+    data = _read_raw()
+    graphs = data.get("graph")
+    graphs = {k: v for k, v in graphs.items() if isinstance(v, dict)} if isinstance(graphs, dict) else {}
+    default = {k: v for k, v in data.items() if k != "graph" and not isinstance(v, dict)}
+
+    if graph_id:
+        graphs[graph_id] = asdict(cfg)
+    else:
+        default = asdict(cfg)
+
     try:
         _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        _CONFIG_FILE.write_text(_dump_toml(asdict(cfg)))
+        _CONFIG_FILE.write_text(_dump_toml(default, graphs))
     except OSError:
         pass
 
 
-def _dump_toml(data: dict) -> str:
-    """Tiny TOML emitter for our flat scalar schema. Booleans render
-    lowercase; strings get quoted. Not a general-purpose writer."""
-    lines: list[str] = []
-    for key, value in data.items():
-        if isinstance(value, bool):
-            lines.append(f"{key} = {'true' if value else 'false'}")
-        elif isinstance(value, str):
-            lines.append(f'{key} = "{value}"')
-        else:
-            raise TypeError(f"config_store cannot serialize {key!r} of type {type(value).__name__}")
+def _dump_toml(default: dict, graphs: dict[str, dict]) -> str:
+    """Tiny TOML emitter for our schema: default scalars at the top, then one
+    `[graph."<id>"]` table per agent. Not a general-purpose writer."""
+    lines: list[str] = [_kv(k, v) for k, v in default.items()]
+    for gid, gcfg in graphs.items():
+        lines.append("")
+        lines.append(f"[graph.{_quote_key(gid)}]")
+        lines.extend(_kv(k, v) for k, v in gcfg.items())
     return "\n".join(lines) + "\n"
+
+
+def _kv(key: str, value: object) -> str:
+    if isinstance(value, bool):
+        return f"{key} = {'true' if value else 'false'}"
+    if isinstance(value, str):
+        return f"{key} = {_quote_key(value)}"
+    raise TypeError(f"config_store cannot serialize {key!r} of type {type(value).__name__}")
+
+
+def _quote_key(s: str) -> str:
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'

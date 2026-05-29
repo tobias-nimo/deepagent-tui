@@ -138,7 +138,7 @@ async def test_resume_requires_message_when_not_interrupted(stub, capsys) -> Non
 
 
 async def test_run_list_prints_threads(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
-    async def _fake_list(limit=50):
+    async def _fake_list(limit=50, *, graph_id=None, workspace=None):
         return [
             {
                 "id": "abcd1234ef",

@@ -81,7 +81,15 @@ async def cmd_resume(client, session, args: str) -> None:
         await _resume_by_id(client, session, args.strip())
         return
 
-    threads = await list_threads(limit=200)
+    # Scope the picker to the current agent, and to the workspace too when the
+    # server has reported one. Before any message is sent workspace_root is
+    # unknown (None) — pass it through so we fall back to graph-only scoping
+    # rather than hiding threads we can't yet classify.
+    threads = await list_threads(
+        limit=200,
+        graph_id=session.graph_id,
+        workspace=session.workspace_root,
+    )
     # Skip empty threads — nothing to resume.
     threads = [t for t in threads if (t.get("message_count") or 0) > 0]
     if not threads:

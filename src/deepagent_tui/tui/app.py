@@ -758,6 +758,11 @@ class DeepAgentTUI(App):
             self.set_timer(3.0, self.exit)
             return
 
+        # The graph_id is only known now, after connect(). Re-load config with
+        # it so per-agent overrides replace the default layer applied at startup
+        # (in __init__ and on the ui.theme import).
+        self._apply_scoped_config()
+
         with _capture_console() as cap:
             try:
                 await discover_and_register_skills(self.client, self.session)
@@ -767,6 +772,29 @@ class DeepAgentTUI(App):
 
         welcome.set_connecting(None)
         self.query_one("#prompt", ChatTextArea).focus()
+
+    def _apply_scoped_config(self) -> None:
+        """Re-load config scoped to the connected agent and apply it to the
+        session, widget mode, thinking animation, and theme. Startup applied
+        only the default layer (graph_id wasn't known yet); this lets a
+        `[graph."<id>"]` override win once we know which agent we connected to."""
+        from deepagent_tui.storage.config_store import load_config
+        from deepagent_tui.ui.theme import set_theme
+        from deepagent_tui.ui.tool_widgets import set_widget_mode
+
+        cfg = load_config(self.session.graph_id)
+        self.session.hitl_enabled = cfg.hitl_enabled
+        self.session.tool_widget_mode = cfg.tool_widget_mode
+        self.session.markdown_enabled = cfg.markdown_enabled
+        self.session.language = cfg.language
+        self.session.thinking_animation = cfg.thinking_animation
+        set_widget_mode(cfg.tool_widget_mode)
+        _thinking_anim.set_animation(cfg.thinking_animation)
+        if cfg.theme and set_theme(cfg.theme):
+            try:
+                self.query_one("#welcome", WelcomeBanner).refresh_content()
+            except Exception:
+                pass
 
     # ── Input / autocomplete ────────────────────────────────────────────────
 
@@ -1452,6 +1480,7 @@ class DeepAgentTUI(App):
                 await upsert_thread(
                     self.session.thread_id,
                     self.session.graph_id or "",
+                    workspace=self.session.workspace_root,
                     last_message=display_text[:100],
                     message_count=len(self.session.messages) + 1,
                 )

@@ -10,6 +10,7 @@ The TUI keeps a local SQLite index at `~/.deepagent-tui/threads.db` (created on 
 CREATE TABLE threads (
     id            TEXT PRIMARY KEY,   -- the LangGraph thread_id
     graph_id      TEXT NOT NULL,      -- the graph/assistant the thread belongs to
+    workspace     TEXT,               -- the agent's workspace root, when reported
     title         TEXT NOT NULL DEFAULT '',
     last_message  TEXT NOT NULL DEFAULT '',
     message_count INTEGER NOT NULL DEFAULT 0,
@@ -19,6 +20,8 @@ CREATE TABLE threads (
 ```
 
 Rows are written by `upsert_thread()` only after a completed assistant turn — it sets `last_message` (first 100 chars) and `message_count`. Threads with no messages aren't indexed locally: bootstrap, `/new`, and `/rewind` create the server thread but defer the row until the first turn lands, so abandoned launches/rewinds don't evict real conversations under the retention cap.
+
+`workspace` is the agent's workspace root (`session.workspace_root`), which often isn't known until the server reports it after the first message. It's written only when known, so a later turn backfills it without an earlier `NULL` clobbering the value. Databases created before this column was added are migrated in place (`ALTER TABLE … ADD COLUMN`) on first open.
 
 The actual conversation content (messages, checkpoints, tool calls) lives on the LangGraph server; this DB is only an index.
 
@@ -30,7 +33,7 @@ The DB is capped at `MAX_THREADS = 20` rows (defined in `storage/db.py`). Every 
 
 ### `/resume` with no argument
 
-Opens a picker listing every **non-empty** thread in the local DB (up to the `MAX_THREADS` retention cap), filterable with type-to-search.
+Opens a picker listing the **non-empty** threads in the local DB (up to the `MAX_THREADS` retention cap), filterable with type-to-search. The list is **scoped to the connected agent** (`graph_id`), and further to the current `workspace` when the server has reported one — so threads from other agents/workspaces don't bleed into the picker. Before the workspace is known (no message sent yet in the session), the picker falls back to graph-only scoping rather than hiding threads it can't yet classify. Resolving a thread by explicit id/prefix (below) is **not** scoped, so you can still attach to any thread you know the id of.
 
 Each row shows:
 

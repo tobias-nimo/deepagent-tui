@@ -154,7 +154,9 @@ async def test_config_toggle_persists(monkeypatch: pytest.MonkeyPatch, tmp_path)
         screen._cycle_current(+1)
         assert app.session.hitl_enabled != initial_hitl
 
-        loaded = config_store.load_config()
+        # Settings are scoped to the connected agent, so the toggle round-trips
+        # through that graph's override layer — not the shared default.
+        loaded = config_store.load_config(app.session.graph_id)
         assert loaded.hitl_enabled == app.session.hitl_enabled
 
         # Cycling the Tool widgets row (row 0) writes the new mode and
@@ -166,7 +168,10 @@ async def test_config_toggle_persists(monkeypatch: pytest.MonkeyPatch, tmp_path)
         screen._cycle_current(+1)
         assert app.session.tool_widget_mode != before_mode
         assert tw._WIDGET_MODE == app.session.tool_widget_mode
-        assert config_store.load_config().tool_widget_mode == app.session.tool_widget_mode
+        assert (
+            config_store.load_config(app.session.graph_id).tool_widget_mode
+            == app.session.tool_widget_mode
+        )
 
 
 async def test_at_prefix_reveals_file_list(tmp_path) -> None:

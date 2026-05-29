@@ -795,7 +795,11 @@ class SettingsScreen(ModalScreen[None]):
         # Load-and-mutate rather than rebuilding from scratch so the persisted
         # `theme` is preserved when other rows change — and only rewritten when
         # the theme row itself is cycled (keeps the empty-sentinel precedence).
-        cfg = load_config()
+        # Scope reads and writes to the connected agent so changes here only
+        # affect this graph; before connection (graph_id None) they fall back to
+        # the shared default layer.
+        graph_id = self._session.graph_id
+        cfg = load_config(graph_id)
         cfg.hitl_enabled = self._session.hitl_enabled
         cfg.tool_widget_mode = self._session.tool_widget_mode  # type: ignore[assignment]
         cfg.markdown_enabled = self._session.markdown_enabled
@@ -803,7 +807,7 @@ class SettingsScreen(ModalScreen[None]):
         cfg.thinking_animation = self._session.thinking_animation
         if idx == 5:
             cfg.theme = current_theme().name
-        save_config(cfg)
+        save_config(cfg, graph_id)
         self._refresh_tabs()
         self._refresh_body()
 
