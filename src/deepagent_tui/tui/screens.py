@@ -736,11 +736,10 @@ class SettingsScreen(ModalScreen[None]):
         return out
 
     def _cycle_current(self, delta: int) -> None:
-        from deepagent_tui.storage.config_store import UserConfig, save_config
+        from deepagent_tui.storage.config_store import load_config, save_config
         from deepagent_tui.ui.theme import (
             available_themes,
             current_theme,
-            persist_theme,
             set_theme,
         )
 
@@ -792,17 +791,19 @@ class SettingsScreen(ModalScreen[None]):
                 pos = 0
             new_name = names[(pos + delta) % len(names)]
             set_theme(new_name)
-            persist_theme(new_name)
 
-        save_config(
-            UserConfig(
-                hitl_enabled=self._session.hitl_enabled,
-                tool_widget_mode=self._session.tool_widget_mode,  # type: ignore[arg-type]
-                markdown_enabled=self._session.markdown_enabled,
-                language=self._session.language,
-                thinking_animation=self._session.thinking_animation,
-            )
-        )
+        # Load-and-mutate rather than rebuilding from scratch so the persisted
+        # `theme` is preserved when other rows change — and only rewritten when
+        # the theme row itself is cycled (keeps the empty-sentinel precedence).
+        cfg = load_config()
+        cfg.hitl_enabled = self._session.hitl_enabled
+        cfg.tool_widget_mode = self._session.tool_widget_mode  # type: ignore[assignment]
+        cfg.markdown_enabled = self._session.markdown_enabled
+        cfg.language = self._session.language
+        cfg.thinking_animation = self._session.thinking_animation
+        if idx == 5:
+            cfg.theme = current_theme().name
+        save_config(cfg)
         self._refresh_tabs()
         self._refresh_body()
 
