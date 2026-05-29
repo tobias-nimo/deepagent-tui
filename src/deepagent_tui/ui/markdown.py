@@ -8,6 +8,19 @@ from rich.text import Text
 
 from deepagent_tui.ui.theme import markdown_theme
 
+# Pygments style used for fenced code blocks. Mutated by `set_code_theme` when
+# the user cycles the "Code snippets style" row in /settings; the default
+# matches the value this module historically hard-coded.
+_code_theme: str = "github-dark"
+
+
+def set_code_theme(name: str) -> None:
+    """Set the Pygments style future `render_markdown` calls use for code
+    blocks. Called from the settings screen and at startup from persisted
+    config."""
+    global _code_theme
+    _code_theme = name
+
 
 class _SolidRule(HorizontalRule):
     """Render `---` as a solid dim line in the accent color instead of Rich's
@@ -46,7 +59,7 @@ def render_markdown(text: str) -> _ThemedMarkdown:
     Pre-processes the text to handle edge cases before Rich rendering.
     """
     processed = _preprocess(text)
-    return _ThemedMarkdown(_ThemedMd(processed, code_theme="github-dark"))
+    return _ThemedMarkdown(_ThemedMd(processed, code_theme=_code_theme))
 
 
 def _preprocess(text: str) -> str:

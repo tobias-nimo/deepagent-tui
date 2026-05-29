@@ -51,7 +51,7 @@ If `THREAD_ID` is set, the TUI attaches to that thread (the server is not asked 
 | Path | Purpose |
 |------|---------|
 | `~/.deepagent-tui/threads.db` | SQLite thread index (powers `/resume`); the picker is scoped per agent (`graph_id`) + workspace |
-| `~/.deepagent-tui/config.toml` | Persisted preferences: theme, auto-approve (HITL), tool-widget mode, markdown on/off, thinking animation, language |
+| `~/.deepagent-tui/config.toml` | Persisted preferences: theme, auto-approve (HITL), tool-widget mode, markdown on/off, code-snippet style, thinking animation, language |
 | `.env` | Per-directory configuration overrides |
 
 A legacy `~/.deepagent-tui/theme` file from older versions is migrated into `config.toml` automatically on first launch, then removed.

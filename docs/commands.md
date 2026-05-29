@@ -71,10 +71,11 @@ The welcome banner repaints after any command, so theme changes take effect imme
 ### `/settings`
 Opens a four-tab modal docked to the bottom 60% of the screen (the chat behind stays visible through a hazy backdrop). `Shift+Tab` / `Tab` (also `[` / `]`) cycles tabs; `Esc` / `Ctrl+C` / `q` closes.
 
-- **Config** — six interactive rows; ↑↓ moves the highlight, ←→ (or `Space`) cycles the value. Changes apply live and are persisted to the connected agent's section of `~/.deepagent-tui/config.toml`, so they don't affect other agents (see [configuration.md](configuration.md#per-agent-scoping)).
-  - `Tool widgets output` — tool-widget verbosity: `compacted` (header only), `default` (capped preview), `expanded` (no per-tool cap; full diffs, full bash output, full Ls listings, full subagent progress). Changing this re-renders existing tool widgets in the transcript, not just future ones.
+- **Config** — seven interactive rows; ↑↓ moves the highlight, ←→ (or `Space`) cycles the value. Changes apply live and are persisted to the connected agent's section of `~/.deepagent-tui/config.toml`, so they don't affect other agents (see [configuration.md](configuration.md#per-agent-scoping)).
+  - `Tool widget mode` — tool-widget verbosity: `compacted` (header only), `default` (capped preview), `expanded` (no per-tool cap; full diffs, full bash output, full Ls listings, full subagent progress). Changing this re-renders existing tool widgets in the transcript, not just future ones.
   - `Auto-approve tools` — `off` shows the inline approval widget on interrupts; `on` auto-accepts them.
   - `Markdown rendering` — `on` renders assistant text through Rich Markdown; `off` falls back to raw `Text` (useful for debugging streamed payloads). Changing this re-renders existing assistant messages in the transcript, not just future ones.
+  - `Code snippets style` — Pygments style for fenced code blocks in assistant markdown: `github-dark` (default), `monokai`, `dracula`, `nord-darker`, `one-dark`, `gruvbox-dark`, `native`, `lightbulb`. Changing this re-renders existing assistant messages, not just future ones.
   - `Thinking animation` — cycles the streaming "Thinking…" animation: `braille`, `pulse`, `shimmer`, `gradient`, `typewriter`, `sparkle` (`shimmer`/`gradient` follow the active theme).
   - `Language` — placeholder locked to `english` today.
   - `Theme` — cycles through the same themes available to `/theme`. Persisted to `~/.deepagent-tui/config.toml` like the other rows.

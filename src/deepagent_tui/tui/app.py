@@ -653,6 +653,7 @@ class DeepAgentTUI(App):
         # ~/.deepagent-tui/config.toml. Theme lives in the same file but is
         # loaded by ui.theme on import.
         from deepagent_tui.storage.config_store import load_config
+        from deepagent_tui.ui.markdown import set_code_theme as _set_code_theme
         from deepagent_tui.ui.tool_widgets import set_widget_mode as _set_widget_mode
 
         _cfg = load_config()
@@ -661,8 +662,10 @@ class DeepAgentTUI(App):
         self.session.markdown_enabled = _cfg.markdown_enabled
         self.session.language = _cfg.language
         self.session.thinking_animation = _cfg.thinking_animation
+        self.session.code_theme = _cfg.code_theme
         _set_widget_mode(_cfg.tool_widget_mode)
         _thinking_anim.set_animation(_cfg.thinking_animation)
+        _set_code_theme(_cfg.code_theme)
         self._stream_buffer: str = ""
         # Which autocomplete dropdown is currently showing, so Tab / selection
         # know what to do: "command" (/), "file" (@), or "none".
@@ -801,6 +804,7 @@ class DeepAgentTUI(App):
         only the default layer (graph_id wasn't known yet); this lets a
         `[graph."<id>"]` override win once we know which agent we connected to."""
         from deepagent_tui.storage.config_store import load_config
+        from deepagent_tui.ui.markdown import set_code_theme
         from deepagent_tui.ui.theme import set_theme
         from deepagent_tui.ui.tool_widgets import set_widget_mode
 
@@ -810,8 +814,10 @@ class DeepAgentTUI(App):
         self.session.markdown_enabled = cfg.markdown_enabled
         self.session.language = cfg.language
         self.session.thinking_animation = cfg.thinking_animation
+        self.session.code_theme = cfg.code_theme
         set_widget_mode(cfg.tool_widget_mode)
         _thinking_anim.set_animation(cfg.thinking_animation)
+        set_code_theme(cfg.code_theme)
         if cfg.theme and set_theme(cfg.theme):
             try:
                 self.query_one("#welcome", WelcomeBanner).refresh_content()
