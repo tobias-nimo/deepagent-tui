@@ -920,14 +920,21 @@ class DeepAgentTUI(App):
         shows a hint instead of leaking the directory the TUI was launched
         from."""
         if not self.session.workspace_root:
+            # Distinguish "not loaded yet" from "never going to load": once a
+            # message has been sent the workspace root would have arrived in
+            # thread state, so its absence means the workspace middleware isn't
+            # attached server-side rather than a not-yet-loaded race.
+            if self.session.messages:
+                hint = (
+                    "File paths aren't available. "
+                    "See docs/server-middleware.md to enable them."
+                )
+            else:
+                hint = "Send a message first to load the workspace before browsing files"
             ac.clear_options()
             ac.add_option(
                 Option(
-                    Text(
-                        "Send a message first to load the workspace before "
-                        "browsing files",
-                        style="dim",
-                    )
+                    Text(hint, style="dim")
                 )  # no id → Tab / click is a no-op
             )
             self._ac_mode = "file"
@@ -1686,10 +1693,20 @@ class DeepAgentTUI(App):
         if not self.session.workspace_root:
             from deepagent_tui.ui.renderer import render_info
 
-            render_info(
-                "Send a message first to load the workspace before running "
-                "shell commands."
-            )
+            # Once a message has been sent the workspace root would have arrived
+            # in thread state; its continued absence means the workspace
+            # middleware isn't attached server-side rather than a not-yet-loaded
+            # race.
+            if self.session.messages:
+                render_info(
+                    "Shell mode isn't available. "
+                    "See docs/server-middleware.md to enable it."
+                )
+            else:
+                render_info(
+                    "Send a message first to load the workspace before running "
+                    "shell commands."
+                )
             return
         worker = self.run_worker(
             self._exec_shell(command),

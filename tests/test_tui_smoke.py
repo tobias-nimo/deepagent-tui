@@ -237,6 +237,42 @@ async def test_shell_before_workspace_known_does_not_run() -> None:
         assert "Send a message first" in joined
 
 
+async def test_shell_after_message_hints_at_middleware() -> None:
+    # Once a message has been sent but the workspace never loaded, the hint
+    # should point at the missing server middleware rather than ask the user
+    # to send a message they already sent.
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.session.workspace_root = None
+        app.session.messages = [{"role": "user", "content": "hi"}]
+        app._run_shell_command("!echo nope", "echo nope")
+        msgs = app.query_one("#messages", Container)
+        joined = "\n".join(
+            str(w.content) for w in msgs.children if isinstance(w, Static)
+        )
+        assert "Send a message first" not in joined
+        assert "docs/server-middleware.md" in joined
+
+
+async def test_at_completion_after_message_hints_at_middleware() -> None:
+    app = DeepAgentTUI()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.session.workspace_root = None
+        app.session.messages = [{"role": "user", "content": "hi"}]
+        prompt = app.query_one("#prompt", ChatTextArea)
+        prompt.text = "see @"
+        prompt.move_cursor(prompt.document.end)
+        app._refresh_autocomplete(prompt.text)
+        ac = app.query_one("#autocomplete", OptionList)
+        assert "-hidden" not in ac.classes
+        assert ac.option_count == 1
+        label = str(ac.get_option_at_index(0).prompt)
+        assert "Send a message first" not in label
+        assert "docs/server-middleware.md" in label
+
+
 async def test_at_completion_replaces_token(tmp_path) -> None:
     (tmp_path / "alpha.txt").write_text("x")
     app = DeepAgentTUI()
